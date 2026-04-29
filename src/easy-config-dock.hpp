@@ -23,6 +23,7 @@ private slots:
   void refreshObsState();
   void browseBaseDirectory();
   void updatePreview();
+  void updateApplyButtonVisibility();
   void applyNow();
   void applyBeforeRecording();
 
@@ -30,7 +31,7 @@ private:
   PluginConfig configFromUi() const;
   void setUiFromConfig(const PluginConfig &config);
   void saveCurrentConfig();
-  void setStatus(const QString &message, bool error = false);
+  void setPreviewText(const QString &message, bool error = false);
   void refillCombo(QComboBox *combo, const QStringList &items, const QString &current);
 
   ObsController *controller_ = nullptr;
@@ -42,7 +43,6 @@ private:
   QLineEdit *manualTagEdit_ = nullptr;
   QCheckBox *autoApplyCheck_ = nullptr;
   QLabel *previewLabel_ = nullptr;
-  QLabel *statusLabel_ = nullptr;
   QPushButton *applyButton_ = nullptr;
 };
 

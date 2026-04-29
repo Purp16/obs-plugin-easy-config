@@ -9,6 +9,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QSizePolicy>
 #include <QStyle>
 #include <QVBoxLayout>
 
@@ -48,6 +49,17 @@ std::string toStdStringCompat(const QString &value)
   return std::string(utf8.constData(), static_cast<std::size_t>(utf8.size()));
 }
 
+QString templateHelpText()
+{
+  return trText("PathTemplateHelp");
+}
+
+void makeCompact(QWidget *widget)
+{
+  widget->setMaximumHeight(26);
+  widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+}
+
 } // namespace
 
 EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
@@ -61,40 +73,64 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   manualTagEdit_ = new QLineEdit(this);
   autoApplyCheck_ = new QCheckBox(trText("AutoApplyBeforeRecording"), this);
   previewLabel_ = new QLabel(this);
-  statusLabel_ = new QLabel(this);
   applyButton_ = new QPushButton(trText("ApplyNow"), this);
 
   pathTemplateEdit_->setPlaceholderText(QLatin1String("{date}/{tag}"));
+  pathTemplateEdit_->setToolTip(templateHelpText());
+  manualTagEdit_->setPlaceholderText(trText("ManualTagPlaceholder"));
+
+  makeCompact(sceneCombo_);
+  makeCompact(sceneCollectionCombo_);
+  makeCompact(profileCombo_);
+  makeCompact(baseDirectoryEdit_);
+  makeCompact(pathTemplateEdit_);
+  makeCompact(manualTagEdit_);
+  autoApplyCheck_->setMaximumHeight(24);
+  applyButton_->setMaximumHeight(26);
 
   previewLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   previewLabel_->setWordWrap(true);
-  statusLabel_->setWordWrap(true);
 
   auto *browseButton = new QPushButton(trText("Browse"), this);
+  browseButton->setMaximumHeight(26);
   auto *baseLayout = new QHBoxLayout();
+  baseLayout->setContentsMargins(0, 0, 0, 0);
+  baseLayout->setSpacing(4);
   baseLayout->addWidget(baseDirectoryEdit_, 1);
   baseLayout->addWidget(browseButton);
+
+  auto *templateHelpButton = new QPushButton(this);
+  templateHelpButton->setIcon(style()->standardIcon(QStyle::SP_MessageBoxQuestion));
+  templateHelpButton->setToolTip(templateHelpText());
+  templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
+  templateHelpButton->setFixedSize(24, 24);
+  templateHelpButton->setFocusPolicy(Qt::NoFocus);
+
+  auto *templateLayout = new QHBoxLayout();
+  templateLayout->setContentsMargins(0, 0, 0, 0);
+  templateLayout->setSpacing(4);
+  templateLayout->addWidget(pathTemplateEdit_, 1);
+  templateLayout->addWidget(templateHelpButton);
 
   auto *form = new QFormLayout();
   form->setContentsMargins(0, 0, 0, 0);
   form->setHorizontalSpacing(style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing));
-  form->setVerticalSpacing(style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing));
+  form->setVerticalSpacing(5);
   form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   form->addRow(trText("Scene"), sceneCombo_);
   form->addRow(trText("SceneCollection"), sceneCollectionCombo_);
   form->addRow(trText("Profile"), profileCombo_);
   form->addRow(trText("BaseDirectory"), baseLayout);
-  form->addRow(trText("PathTemplate"), pathTemplateEdit_);
+  form->addRow(trText("PathTemplate"), templateLayout);
   form->addRow(trText("ManualTag"), manualTagEdit_);
   form->addRow(QString(), autoApplyCheck_);
   form->addRow(trText("Preview"), previewLabel_);
 
   auto *layout = new QVBoxLayout(this);
-  layout->setContentsMargins(8, 8, 8, 8);
-  layout->setSpacing(style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing));
+  layout->setContentsMargins(8, 6, 8, 6);
+  layout->setSpacing(5);
   layout->addLayout(form);
   layout->addWidget(applyButton_);
-  layout->addWidget(statusLabel_);
   layout->addStretch(1);
 
   setUiFromConfig(controller_->loadConfig());
@@ -103,30 +139,34 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   connect(sceneCombo_, &QComboBox::currentTextChanged, this, [this](const QString &value) {
     QString error;
     if (!controller_->setCurrentScene(value, &error))
-      setStatus(error, true);
+      setPreviewText(error, true);
     updatePreview();
   });
   connect(sceneCollectionCombo_, &QComboBox::currentTextChanged, this, [this](const QString &value) {
     QString error;
     if (!controller_->setCurrentSceneCollection(value, &error))
-      setStatus(error, true);
+      setPreviewText(error, true);
     updatePreview();
   });
   connect(profileCombo_, &QComboBox::currentTextChanged, this, [this](const QString &value) {
     QString error;
     if (!controller_->setCurrentProfile(value, &error))
-      setStatus(error, true);
+      setPreviewText(error, true);
     updatePreview();
   });
   connect(browseButton, &QPushButton::clicked, this, &EasyConfigDock::browseBaseDirectory);
   connect(baseDirectoryEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(pathTemplateEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(manualTagEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
-  connect(autoApplyCheck_, &QCheckBox::toggled, this, &EasyConfigDock::saveCurrentConfig);
+  connect(autoApplyCheck_, &QCheckBox::toggled, this, [this]() {
+    updateApplyButtonVisibility();
+    saveCurrentConfig();
+  });
   connect(applyButton_, &QPushButton::clicked, this, &EasyConfigDock::applyNow);
   connect(controller_, &ObsController::obsStateChanged, this, &EasyConfigDock::refreshObsState);
   connect(controller_, &ObsController::recordingStarting, this, &EasyConfigDock::applyBeforeRecording);
 
+  updateApplyButtonVisibility();
   updatePreview();
 }
 
@@ -152,14 +192,19 @@ void EasyConfigDock::updatePreview()
   const PluginConfig config = configFromUi();
   const auto result = controller_->previewRecordingPath(config);
   if (result.ok) {
-    previewLabel_->setText(QString::fromUtf8(result.path.c_str(), -1));
-    setStatus(trText("Ready"));
+    setPreviewText(QString::fromUtf8(result.path.c_str(), -1));
   } else {
-    previewLabel_->setText(QString::fromUtf8(result.path.c_str(), -1));
     if (!result.errors.empty())
-      setStatus(localizedError(result.errors.front()), true);
+      setPreviewText(localizedError(result.errors.front()), true);
+    else
+      setPreviewText(QString::fromUtf8(result.path.c_str(), -1), true);
   }
   saveCurrentConfig();
+}
+
+void EasyConfigDock::updateApplyButtonVisibility()
+{
+  applyButton_->setVisible(!autoApplyCheck_->isChecked());
 }
 
 void EasyConfigDock::applyNow()
@@ -168,12 +213,12 @@ void EasyConfigDock::applyNow()
   QString error;
   const PluginConfig config = configFromUi();
   if (!controller_->applyRecordingPath(config, &path, &error)) {
-    setStatus(error, true);
+    setPreviewText(error, true);
     return;
   }
 
   saveCurrentConfig();
-  setStatus(trText("Applied"));
+  setPreviewText(path);
 }
 
 void EasyConfigDock::applyBeforeRecording()
@@ -185,11 +230,11 @@ void EasyConfigDock::applyBeforeRecording()
   QString path;
   QString error;
   if (!controller_->applyRecordingPath(config, &path, &error)) {
-    setStatus(error, true);
+    setPreviewText(error, true);
     return;
   }
 
-  setStatus(trText("Applied"));
+  setPreviewText(path);
 }
 
 PluginConfig EasyConfigDock::configFromUi() const
@@ -215,13 +260,13 @@ void EasyConfigDock::saveCurrentConfig()
 {
   QString error;
   if (!controller_->saveConfig(configFromUi(), &error))
-    setStatus(error, true);
+    setPreviewText(error, true);
 }
 
-void EasyConfigDock::setStatus(const QString &message, bool error)
+void EasyConfigDock::setPreviewText(const QString &message, bool error)
 {
-  statusLabel_->setText(message);
-  statusLabel_->setStyleSheet(error ? "color: #c62828;" : "color: palette(text);");
+  previewLabel_->setText(message);
+  previewLabel_->setStyleSheet(error ? "color: #c62828;" : "color: palette(text);");
 }
 
 void EasyConfigDock::refillCombo(QComboBox *combo, const QStringList &items,
