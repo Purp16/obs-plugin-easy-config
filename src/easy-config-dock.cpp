@@ -3,27 +3,23 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFileDialog>
-#include <QGridLayout>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
-#include <QSizePolicy>
 #include <QStyle>
 #include <QToolTip>
 #include <QVBoxLayout>
 
 #include <obs-module.h>
 
-#include <algorithm>
-
 namespace easy_config {
 namespace {
 
 constexpr int kControlSpacing = 6;
 constexpr int kFormMargin = 8;
-constexpr int kControlHeight = 36;
 
 QString trText(const char *key)
 {
@@ -61,46 +57,6 @@ QString templateHelpText()
   return trText("PathTemplateHelp");
 }
 
-void makeCompact(QWidget *widget, int height)
-{
-  widget->setFixedHeight(height);
-  widget->setMinimumHeight(height);
-  widget->setMaximumHeight(height);
-  widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-}
-
-QLabel *makeRowLabel(const QString &text, int height, QWidget *parent)
-{
-  auto *label = new QLabel(text, parent);
-  label->setFixedHeight(height);
-  label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  return label;
-}
-
-void addGridRow(QGridLayout *grid, int row, const QString &labelText,
-                QWidget *field, int height, QWidget *parent)
-{
-  grid->addWidget(makeRowLabel(labelText, height, parent), row, 0);
-  grid->addWidget(field, row, 1);
-  grid->setRowMinimumHeight(row, height);
-}
-
-void applyControlChrome(QWidget *widget)
-{
-  widget->setStyleSheet(QString::fromLatin1(
-    "QLineEdit, QComboBox, QPushButton {"
-    "  min-height: %1px;"
-    "  max-height: %1px;"
-    "  padding-top: 0px;"
-    "  padding-bottom: 0px;"
-    "}"
-    "QPushButton {"
-    "  padding-left: 12px;"
-    "  padding-right: 12px;"
-    "}"
-  ).arg(kControlHeight));
-}
-
 } // namespace
 
 EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
@@ -121,25 +77,6 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   previewLabel_->setWordWrap(true);
 
   auto *browseButton = new QPushButton(trText("Browse"), this);
-  const int controlHeight = std::max(kControlHeight,
-                                     std::max({browseButton->sizeHint().height(),
-                                               baseDirectoryEdit_->sizeHint().height(),
-                                               pathTemplateEdit_->sizeHint().height(),
-                                               profileCombo_->sizeHint().height()}));
-  makeCompact(sceneCollectionCombo_, controlHeight);
-  makeCompact(profileCombo_, controlHeight);
-  makeCompact(baseDirectoryEdit_, controlHeight);
-  makeCompact(pathTemplateEdit_, controlHeight);
-  makeCompact(manualTagEdit_, controlHeight);
-  makeCompact(browseButton, controlHeight);
-  enablePathAutomationCheck_->setFixedHeight(controlHeight);
-  applyControlChrome(sceneCollectionCombo_);
-  applyControlChrome(profileCombo_);
-  applyControlChrome(baseDirectoryEdit_);
-  applyControlChrome(pathTemplateEdit_);
-  applyControlChrome(manualTagEdit_);
-  applyControlChrome(browseButton);
-
   auto *baseLayout = new QHBoxLayout();
   baseLayout->setContentsMargins(0, 0, 0, 0);
   baseLayout->setSpacing(kControlSpacing);
@@ -148,9 +85,8 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
 
   auto *templateHelpButton = new QPushButton(QLatin1String("?"), this);
   templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
-  templateHelpButton->setFixedSize(controlHeight, controlHeight);
+  templateHelpButton->setFixedWidth(browseButton->sizeHint().height());
   templateHelpButton->setFocusPolicy(Qt::NoFocus);
-  applyControlChrome(templateHelpButton);
   connect(templateHelpButton, &QPushButton::clicked, this, [templateHelpButton]() {
     QToolTip::showText(templateHelpButton->mapToGlobal(
                          QPoint(-260, -templateHelpButton->height())),
@@ -163,33 +99,18 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   templateLayout->addWidget(pathTemplateEdit_, 1);
   templateLayout->addWidget(templateHelpButton);
 
-  auto *baseContainer = new QWidget(this);
-  baseContainer->setFixedHeight(controlHeight);
-  baseContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  baseContainer->setLayout(baseLayout);
-
-  auto *templateContainer = new QWidget(this);
-  templateContainer->setFixedHeight(controlHeight);
-  templateContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  templateContainer->setLayout(templateLayout);
-
-  previewLabel_->setMinimumHeight(controlHeight);
-  enablePathAutomationCheck_->setMinimumHeight(controlHeight);
-
-  auto *form = new QGridLayout();
+  auto *form = new QFormLayout();
   form->setContentsMargins(0, 0, 0, 0);
   form->setHorizontalSpacing(style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing));
   form->setVerticalSpacing(kControlSpacing);
-  form->setColumnStretch(1, 1);
-  form->setColumnMinimumWidth(0, 100);
-  addGridRow(form, 0, trText("Profile"), profileCombo_, controlHeight, this);
-  addGridRow(form, 1, trText("SceneCollection"), sceneCollectionCombo_, controlHeight, this);
-  addGridRow(form, 2, trText("BaseDirectory"), baseContainer, controlHeight, this);
-  addGridRow(form, 3, trText("PathTemplate"), templateContainer, controlHeight, this);
-  addGridRow(form, 4, trText("ManualTag"), manualTagEdit_, controlHeight, this);
-  addGridRow(form, 5, trText("Preview"), previewLabel_, controlHeight, this);
-  form->addWidget(enablePathAutomationCheck_, 6, 1);
-  form->setRowMinimumHeight(6, controlHeight);
+  form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  form->addRow(trText("Profile"), profileCombo_);
+  form->addRow(trText("SceneCollection"), sceneCollectionCombo_);
+  form->addRow(trText("BaseDirectory"), baseLayout);
+  form->addRow(trText("PathTemplate"), templateLayout);
+  form->addRow(trText("ManualTag"), manualTagEdit_);
+  form->addRow(trText("Preview"), previewLabel_);
+  form->addRow(QString(), enablePathAutomationCheck_);
 
   auto *layout = new QVBoxLayout(this);
   layout->setContentsMargins(kFormMargin, kFormMargin, kFormMargin, kFormMargin);
