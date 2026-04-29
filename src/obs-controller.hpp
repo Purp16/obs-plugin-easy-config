@@ -16,6 +16,12 @@ public:
   explicit ObsController(QObject *parent = nullptr);
   ~ObsController() override;
 
+  void markFrontendExiting();
+  void markFrontendReady();
+  void detachFrontendCallbacks();
+  bool isFrontendReady() const;
+  bool isFrontendExiting() const;
+
   QStringList sceneNames() const;
   QStringList sceneCollectionNames() const;
   QStringList profileNames() const;
@@ -41,6 +47,11 @@ public:
 signals:
   void obsStateChanged();
   void recordingStarting();
+
+private:
+  bool frontendCallbacksAttached_ = false;
+  bool frontendReady_ = false;
+  bool frontendExiting_ = false;
 
 };
 

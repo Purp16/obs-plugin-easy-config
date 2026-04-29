@@ -91,6 +91,14 @@ void frontendEventThunk(enum obs_frontend_event event, void *data)
     return;
 
   switch (event) {
+  case OBS_FRONTEND_EVENT_EXIT:
+    controller->markFrontendExiting();
+    controller->detachFrontendCallbacks();
+    break;
+  case OBS_FRONTEND_EVENT_FINISHED_LOADING:
+    controller->markFrontendReady();
+    emit controller->obsStateChanged();
+    break;
   case OBS_FRONTEND_EVENT_SCENE_CHANGED:
   case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED:
   case OBS_FRONTEND_EVENT_PROFILE_CHANGED:
@@ -109,30 +117,73 @@ void frontendEventThunk(enum obs_frontend_event event, void *data)
 ObsController::ObsController(QObject *parent) : QObject(parent)
 {
   obs_frontend_add_event_callback(frontendEventThunk, this);
+  frontendCallbacksAttached_ = true;
 }
 
 ObsController::~ObsController()
 {
+  if (!frontendExiting_)
+    detachFrontendCallbacks();
+}
+
+void ObsController::markFrontendExiting()
+{
+  frontendExiting_ = true;
+}
+
+void ObsController::markFrontendReady()
+{
+  frontendReady_ = true;
+}
+
+void ObsController::detachFrontendCallbacks()
+{
+  if (!frontendCallbacksAttached_)
+    return;
+
   obs_frontend_remove_event_callback(frontendEventThunk, this);
+  frontendCallbacksAttached_ = false;
+}
+
+bool ObsController::isFrontendExiting() const
+{
+  return frontendExiting_;
+}
+
+bool ObsController::isFrontendReady() const
+{
+  return frontendReady_ && !frontendExiting_;
 }
 
 QStringList ObsController::sceneNames() const
 {
+  if (!isFrontendReady())
+    return {};
+
   return stringListFromObs(obs_frontend_get_scene_names());
 }
 
 QStringList ObsController::sceneCollectionNames() const
 {
+  if (!isFrontendReady())
+    return {};
+
   return stringListFromObs(obs_frontend_get_scene_collections());
 }
 
 QStringList ObsController::profileNames() const
 {
+  if (!isFrontendReady())
+    return {};
+
   return stringListFromObs(obs_frontend_get_profiles());
 }
 
 QString ObsController::currentSceneName() const
 {
+  if (!isFrontendReady())
+    return {};
+
   obs_source_t *scene = obs_frontend_get_current_scene();
   QString name;
   if (scene) {
@@ -144,6 +195,9 @@ QString ObsController::currentSceneName() const
 
 QString ObsController::currentSceneCollectionName() const
 {
+  if (!isFrontendReady())
+    return {};
+
   char *value = obs_frontend_get_current_scene_collection();
   const QString name = obsString(value);
   bfree(value);
@@ -152,6 +206,9 @@ QString ObsController::currentSceneCollectionName() const
 
 QString ObsController::currentProfileName() const
 {
+  if (!isFrontendReady())
+    return {};
+
   char *value = obs_frontend_get_current_profile();
   const QString name = obsString(value);
   bfree(value);
@@ -160,6 +217,9 @@ QString ObsController::currentProfileName() const
 
 QString ObsController::currentRecordingDirectory() const
 {
+  if (!isFrontendReady())
+    return {};
+
   config_t *profileConfig = obs_frontend_get_profile_config();
   if (!profileConfig)
     return {};

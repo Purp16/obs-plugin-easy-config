@@ -119,7 +119,6 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   layout->addStretch(1);
 
   setUiFromConfig(controller_->loadConfig());
-  refreshObsState();
 
   connect(sceneCollectionCombo_, &QComboBox::currentTextChanged, this, [this](const QString &value) {
     QString error;
@@ -144,7 +143,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   connect(controller_, &ObsController::obsStateChanged, this, &EasyConfigDock::refreshObsState);
   connect(controller_, &ObsController::recordingStarting, this, &EasyConfigDock::applyBeforeRecording);
 
-  updatePreview();
+  setPreviewText(QString());
 }
 
 void EasyConfigDock::refreshObsState()
