@@ -16,6 +16,8 @@
 
 #include <obs-module.h>
 
+#include <algorithm>
+
 namespace easy_config {
 namespace {
 
@@ -77,14 +79,16 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   previewLabel_ = new QLabel(this);
 
   pathTemplateEdit_->setPlaceholderText(QLatin1String("{date}/{tag}"));
-  pathTemplateEdit_->setToolTip(templateHelpText());
   manualTagEdit_->setPlaceholderText(trText("ManualTagPlaceholder"));
 
   previewLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   previewLabel_->setWordWrap(true);
 
   auto *browseButton = new QPushButton(trText("Browse"), this);
-  const int controlHeight = browseButton->sizeHint().height();
+  const int controlHeight = std::max({browseButton->sizeHint().height(),
+                                      baseDirectoryEdit_->sizeHint().height(),
+                                      pathTemplateEdit_->sizeHint().height(),
+                                      profileCombo_->sizeHint().height()});
   makeCompact(sceneCollectionCombo_, controlHeight);
   makeCompact(profileCombo_, controlHeight);
   makeCompact(baseDirectoryEdit_, controlHeight);
@@ -100,13 +104,12 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   baseLayout->addWidget(browseButton);
 
   auto *templateHelpButton = new QPushButton(QLatin1String("?"), this);
-  templateHelpButton->setToolTip(templateHelpText());
   templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
   templateHelpButton->setFixedSize(controlHeight, controlHeight);
   templateHelpButton->setFocusPolicy(Qt::NoFocus);
   connect(templateHelpButton, &QPushButton::clicked, this, [templateHelpButton]() {
     QToolTip::showText(templateHelpButton->mapToGlobal(
-                         QPoint(0, templateHelpButton->height())),
+                         QPoint(-260, -templateHelpButton->height())),
                        templateHelpText(), templateHelpButton);
   });
 

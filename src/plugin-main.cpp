@@ -6,6 +6,7 @@
 
 #include <QDockWidget>
 #include <QMainWindow>
+#include <QTimer>
 #include <QString>
 
 OBS_DECLARE_MODULE()
@@ -50,6 +51,9 @@ bool obs_module_load()
 
   obs_frontend_add_dock_by_id("obs-plugin-easy-config", obs_module_text("EasyConfig"), dock);
   removeDockCloseButton(mainWindow);
+  QTimer::singleShot(0, mainWindow, [mainWindow]() {
+    removeDockCloseButton(mainWindow);
+  });
   blog(LOG_INFO, "[obs-plugin-easy-config] loaded");
   return true;
 }
