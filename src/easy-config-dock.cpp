@@ -18,8 +18,8 @@
 namespace easy_config {
 namespace {
 
-constexpr int kControlHeight = 24;
-constexpr int kControlSpacing = 4;
+constexpr int kControlHeight = 30;
+constexpr int kControlSpacing = 6;
 
 QString trText(const char *key)
 {
@@ -121,11 +121,11 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   form->addRow(trText("BaseDirectory"), baseLayout);
   form->addRow(trText("PathTemplate"), templateLayout);
   form->addRow(trText("ManualTag"), manualTagEdit_);
-  form->addRow(QString(), enablePathAutomationCheck_);
   form->addRow(trText("Preview"), previewLabel_);
+  form->addRow(QString(), enablePathAutomationCheck_);
 
   auto *layout = new QVBoxLayout(this);
-  layout->setContentsMargins(8, 6, 8, 6);
+  layout->setContentsMargins(8, 8, 8, 8);
   layout->setSpacing(kControlSpacing);
   layout->addLayout(form);
   layout->addStretch(1);
