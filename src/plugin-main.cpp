@@ -9,7 +9,6 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QStyle>
-#include <QTimer>
 #include <QString>
 
 OBS_DECLARE_MODULE()
@@ -74,19 +73,15 @@ bool obs_module_load()
 
   obs_frontend_add_dock_by_id("obs-plugin-easy-config", obs_module_text("EasyConfig"), dock);
   applyDockTitleBar(mainWindow);
-  QTimer::singleShot(0, mainWindow, [mainWindow]() {
-    applyDockTitleBar(mainWindow);
-  });
   blog(LOG_INFO, "[obs-plugin-easy-config] loaded");
   return true;
 }
 
 void obs_module_unload()
 {
-  obs_frontend_remove_dock("obs-plugin-easy-config");
-  delete dock;
-  dock = nullptr;
   delete controller;
   controller = nullptr;
+  obs_frontend_remove_dock("obs-plugin-easy-config");
+  dock = nullptr;
   blog(LOG_INFO, "[obs-plugin-easy-config] unloaded");
 }
