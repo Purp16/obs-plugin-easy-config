@@ -1,6 +1,8 @@
 # OBS Plugin Easy Config
 
-An OBS Studio dock plugin for fast Profile/Scene Collection switching and recording/replay-buffer path automation.
+An OBS Studio dock plugin for fast Profile/Scene Collection switching,
+recording/replay-buffer path automation, video setting shortcuts, and
+replay-buffer tuning.
 
 ## Current Status
 
@@ -10,6 +12,8 @@ This is the first usable implementation scaffold:
 - Qt Widgets dock UI.
 - OBS frontend integration wrapper.
 - Doctest-style unit tests for path rules.
+- Editable Resolution and FPS shortcut presets.
+- Replay-buffer duration and memory controls.
 - OBS locale resource files for English and Chinese, with room for additional
   languages through new `data/locale/*.ini` files.
 
@@ -25,8 +29,8 @@ ctest --test-dir build --output-on-failure
 
 ## Build OBS Plugin
 
-The plugin uses a small set of OBS frontend APIs and is intended to stay
-compatible with OBS Studio 30+. The main compatibility risk is binary
+The plugin uses OBS frontend APIs and is intended to stay compatible with OBS
+Studio 30+. The main compatibility risk is binary
 compatibility, especially Qt and OBS SDK versions. For release builds, compile
 against the oldest OBS version you want to support, then test the same package
 on newer OBS versions.
@@ -212,9 +216,13 @@ After testing, detach the image:
 hdiutil detach /Volumes/OBS
 ```
 
-## MVP Behavior
+## Current Behavior
 
 - Dock title: `Easy Config`
 - Default rule: `baseDirectory` plus `{date}/{tag}`
 - Empty tag fallback: `untagged`
 - First version intentionally does not implement `{app}` foreground application detection.
+- Resolution shortcuts change OBS output resolution only.
+- FPS shortcuts change OBS common FPS only.
+- Video setting shortcut buttons are disabled while recording, streaming, or
+  replay buffer is active.

@@ -255,7 +255,7 @@ Build in this order:
 
 ## Open Decisions
 
-- Minimum OBS version: recommend 30+.
+- Minimum OBS version: 30+ for the first usable version.
 - First supported platform: recommend Windows first if game/software detection is central.
 - Test framework: Catch2, doctest, or a minimal no-dependency CTest binary.
 - Config format: recommend plugin-owned JSON plus active OBS profile updates when rules apply.

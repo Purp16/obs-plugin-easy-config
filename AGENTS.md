@@ -27,7 +27,7 @@ Recommended baseline:
 - C++ with CMake.
 - Qt Widgets for the OBS dock UI by default, because OBS dock APIs accept Qt widgets.
 - Official `obsproject/obs-plugintemplate` as the scaffold source.
-- First target: OBS Studio 30+ unless requirements change.
+- First target: OBS Studio 30.2+ unless requirements change.
 
 Do not introduce an external companion service, browser dock, or obs-websocket-first architecture unless the user explicitly chooses that direction after the tradeoffs are documented.
 

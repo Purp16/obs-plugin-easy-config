@@ -4,12 +4,19 @@
 #include "plugin-config.hpp"
 #include "path-template.hpp"
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 
+using easy_config::FpsPreset;
 using easy_config::load_plugin_config;
+using easy_config::normalize_fps_presets;
+using easy_config::normalize_resolution_presets;
 using easy_config::PathContext;
+using easy_config::PluginConfig;
+using easy_config::ResolutionPreset;
 using easy_config::resolve_path_template;
+using easy_config::save_plugin_config;
 using easy_config::sanitize_path_segment;
 
 TEST_CASE("resolves default date and tag template under base directory")
@@ -133,4 +140,98 @@ TEST_CASE("legacy base variable config is migrated to a relative template")
   const auto config = load_plugin_config(path.string());
   std::filesystem::remove(path);
   CHECK(config.pathTemplate == "{date}/{tag}");
+}
+
+TEST_CASE("plugin config preserves next version presets and notification settings")
+{
+  const auto path = std::filesystem::temp_directory_path() / "easy-config-v2-test.json";
+  PluginConfig config;
+  config.baseDirectory = "/recordings";
+  config.pathTemplate = "{date}/{scene}";
+  config.manualTag = "demo";
+  config.resolutionPresets = {
+    {"HD", 1280, 720},
+    {"Full HD", 1920, 1080},
+  };
+  config.fpsPresets = {
+    {"29.97", 29.97},
+    {"59.94", 59.94},
+  };
+  config.lastReplayBufferSeconds = 90;
+  config.lastReplayBufferMegabytes = 2048;
+  config.showProfileSceneCollection = false;
+  config.showVideoPresets = true;
+  config.showReplayBuffer = false;
+  config.showPathAutomation = true;
+  config.showPreviewStatus = false;
+
+  REQUIRE(save_plugin_config(path.string(), config));
+  const auto loaded = load_plugin_config(path.string());
+  std::filesystem::remove(path);
+
+  REQUIRE(loaded.resolutionPresets.size() == 2);
+  CHECK(loaded.resolutionPresets[0].label == "HD");
+  CHECK(loaded.resolutionPresets[0].width == 1280);
+  CHECK(loaded.resolutionPresets[0].height == 720);
+  REQUIRE(loaded.fpsPresets.size() == 2);
+  CHECK(loaded.fpsPresets[1].label == "59.94");
+  CHECK(std::abs(loaded.fpsPresets[1].fps - 59.94) < 0.001);
+  CHECK(loaded.lastReplayBufferSeconds == 90);
+  CHECK(loaded.lastReplayBufferMegabytes == 2048);
+  CHECK(!loaded.showProfileSceneCollection);
+  CHECK(loaded.showVideoPresets);
+  CHECK(!loaded.showReplayBuffer);
+  CHECK(loaded.showPathAutomation);
+  CHECK(!loaded.showPreviewStatus);
+}
+
+TEST_CASE("preset normalization rejects invalid entries without capping visible presets")
+{
+  const auto resolutions = normalize_resolution_presets({
+    {"bad", 0, 720},
+    {"720p", 1280, 720},
+    {"1080p", 1920, 1080},
+    {"1440p", 2560, 1440},
+    {"4K", 3840, 2160},
+    {"8K", 7680, 4320},
+  });
+
+  REQUIRE(resolutions.size() == 5);
+  CHECK(resolutions.front().label == "720p");
+  CHECK(resolutions.back().label == "8K");
+
+  const auto fps = normalize_fps_presets({
+    {"bad", 0.0},
+    {"custom", 29.97},
+    {"60", 60.0},
+    {"120", 120.0},
+    {"144", 144.0},
+    {"240", 240.0},
+  });
+
+  REQUIRE(fps.size() == 5);
+  CHECK(fps.front().label == "29.97");
+  CHECK(std::abs(fps.front().fps - 29.97) < 0.001);
+  CHECK(std::abs(fps.back().fps - 240.0) < 0.001);
+}
+
+TEST_CASE("preset normalization keeps one valid preset and falls back when none remain")
+{
+  const auto resolutions = normalize_resolution_presets({
+    {"bad", -1, 720},
+    {"only", 1920, 1080},
+  });
+  const auto fps = normalize_fps_presets({
+    {"bad", -1.0},
+    {"only", 60.0},
+  });
+
+  REQUIRE(resolutions.size() == 1);
+  CHECK(resolutions[0].label == "only");
+  REQUIRE(fps.size() == 1);
+  CHECK(std::abs(fps[0].fps - 60.0) < 0.001);
+
+  CHECK(normalize_resolution_presets({{"bad", -1, 720}}) ==
+        PluginConfig().resolutionPresets);
+  CHECK(normalize_fps_presets({{"bad", -1.0}}) == PluginConfig().fpsPresets);
 }

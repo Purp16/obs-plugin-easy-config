@@ -59,6 +59,13 @@ QString recordingConfigKey(config_t *config)
   return "AdvOut/RecFilePath";
 }
 
+QString replayBufferSection(config_t *config)
+{
+  const QString mode = obsString(config_get_string(config, "Output", "Mode"));
+  return mode.compare("Advanced", Qt::CaseInsensitive) == 0 ? "AdvOut"
+                                                           : "SimpleOutput";
+}
+
 bool setConfigPath(config_t *config, const QString &compoundKey,
                    const QString &path, QString *error)
 {
@@ -71,6 +78,11 @@ bool setConfigPath(config_t *config, const QString &compoundKey,
 
   config_set_string(config, parts[0].toUtf8().constData(),
                     parts[1].toUtf8().constData(), path.toUtf8().constData());
+  return config_save_safe(config, "tmp", nullptr) == CONFIG_SUCCESS;
+}
+
+bool saveObsConfig(config_t *config)
+{
   return config_save_safe(config, "tmp", nullptr) == CONFIG_SUCCESS;
 }
 
@@ -107,8 +119,24 @@ void frontendEventThunk(enum obs_frontend_event event, void *data)
   case OBS_FRONTEND_EVENT_RECORDING_STARTING:
     emit controller->recordingStarting();
     break;
+  case OBS_FRONTEND_EVENT_RECORDING_STARTED:
+  case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
+    emit controller->obsStateChanged();
+    break;
   case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTING:
     emit controller->replayBufferStarting();
+    break;
+  case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTED:
+    emit controller->obsStateChanged();
+    break;
+  case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STOPPED:
+    emit controller->obsStateChanged();
+    break;
+  case OBS_FRONTEND_EVENT_REPLAY_BUFFER_SAVED:
+    break;
+  case OBS_FRONTEND_EVENT_STREAMING_STARTED:
+  case OBS_FRONTEND_EVENT_STREAMING_STOPPED:
+    emit controller->obsStateChanged();
     break;
   default:
     break;
@@ -271,6 +299,148 @@ bool ObsController::setCurrentProfile(const QString &name, QString *error)
   }
 
   obs_frontend_set_current_profile(name.toUtf8().constData());
+  return true;
+}
+
+bool ObsController::outputsActive() const
+{
+  return obs_frontend_recording_active() || obs_frontend_streaming_active() ||
+         obs_frontend_replay_buffer_active();
+}
+
+VideoResolution ObsController::currentOutputResolution() const
+{
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig)
+    return {};
+
+  return {
+    static_cast<int>(config_get_uint(profileConfig, "Video", "OutputCX")),
+    static_cast<int>(config_get_uint(profileConfig, "Video", "OutputCY")),
+  };
+}
+
+double ObsController::currentFps() const
+{
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig)
+    return 0.0;
+
+  const QString fps = obsString(config_get_string(profileConfig, "Video", "FPSCommon"));
+  bool ok = false;
+  const double value = fps.toDouble(&ok);
+  return ok ? value : 0.0;
+}
+
+ReplayBufferSettings ObsController::currentReplayBufferSettings() const
+{
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig)
+    return {};
+
+  const QString section = replayBufferSection(profileConfig);
+  return {
+    static_cast<int>(config_get_int(profileConfig, section.toUtf8().constData(),
+                                   "RecRBTime")),
+    static_cast<int>(config_get_int(profileConfig, section.toUtf8().constData(),
+                                   "RecRBSize")),
+  };
+}
+
+bool ObsController::setOutputResolution(const ResolutionPreset &preset, QString *error) const
+{
+  if (preset.width <= 0 || preset.height <= 0) {
+    if (error)
+      *error = "Invalid resolution preset.";
+    return false;
+  }
+  if (outputsActive()) {
+    if (error)
+      *error = "Stop recording, streaming, and replay buffer before changing video settings.";
+    return false;
+  }
+
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig) {
+    if (error)
+      *error = "Unable to access OBS profile config.";
+    return false;
+  }
+
+  config_set_uint(profileConfig, "Video", "OutputCX",
+                  static_cast<uint64_t>(preset.width));
+  config_set_uint(profileConfig, "Video", "OutputCY",
+                  static_cast<uint64_t>(preset.height));
+  if (!saveObsConfig(profileConfig)) {
+    if (error)
+      *error = "Unable to save OBS video settings.";
+    return false;
+  }
+
+  obs_frontend_reset_video();
+  return true;
+}
+
+bool ObsController::setFps(const FpsPreset &preset, QString *error) const
+{
+  if (preset.fps <= 0.0) {
+    if (error)
+      *error = "Invalid FPS preset.";
+    return false;
+  }
+  if (outputsActive()) {
+    if (error)
+      *error = "Stop recording, streaming, and replay buffer before changing video settings.";
+    return false;
+  }
+
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig) {
+    if (error)
+      *error = "Unable to access OBS profile config.";
+    return false;
+  }
+
+  config_set_uint(profileConfig, "Video", "FPSType", 0);
+  config_set_string(profileConfig, "Video", "FPSCommon",
+                    format_fps_value(preset.fps).c_str());
+  if (!saveObsConfig(profileConfig)) {
+    if (error)
+      *error = "Unable to save OBS video settings.";
+    return false;
+  }
+
+  obs_frontend_reset_video();
+  return true;
+}
+
+bool ObsController::setReplayBufferSettings(const ReplayBufferSettings &settings,
+                                            QString *error) const
+{
+  if (settings.seconds <= 0 || settings.megabytes <= 0) {
+    if (error)
+      *error = "Replay buffer values must be greater than zero.";
+    return false;
+  }
+
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig) {
+    if (error)
+      *error = "Unable to access OBS profile config.";
+    return false;
+  }
+
+  const QString section = replayBufferSection(profileConfig);
+  config_set_int(profileConfig, section.toUtf8().constData(), "RecRBTime",
+                 settings.seconds);
+  config_set_int(profileConfig, section.toUtf8().constData(), "RecRBSize",
+                 settings.megabytes);
+  if (!saveObsConfig(profileConfig)) {
+    if (error)
+      *error = "Unable to save OBS replay buffer settings.";
+    return false;
+  }
+
   return true;
 }
 

@@ -31,6 +31,9 @@ Important modules:
 - Writing the resolved path to the active OBS profile recording-path setting
   only when path management is enabled and recording or replay buffer is
   starting.
+- Reading and writing OBS output resolution, FPS, and replay-buffer
+  duration/memory settings.
+- Blocking video setting changes while OBS outputs are active.
 
 ## UI
 
@@ -38,10 +41,13 @@ Important modules:
 
 - It exposes Profile and Scene Collection switching plus recording/replay-path
   fields.
+- It exposes Resolution and FPS shortcut buttons with edit dialogs.
+- It exposes replay-buffer duration and memory inputs.
 - It persists form changes through `ObsController`.
 - It previews paths and triggers apply operations.
 
 No path parsing rules should live in the UI layer.
+
 
 ## Testing
 

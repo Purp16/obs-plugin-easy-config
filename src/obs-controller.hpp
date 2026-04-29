@@ -9,6 +9,16 @@
 
 namespace easy_config {
 
+struct VideoResolution {
+  int width = 0;
+  int height = 0;
+};
+
+struct ReplayBufferSettings {
+  int seconds = 0;
+  int megabytes = 0;
+};
+
 class ObsController : public QObject {
   Q_OBJECT
 
@@ -34,6 +44,14 @@ public:
   bool setCurrentScene(const QString &name, QString *error);
   bool setCurrentSceneCollection(const QString &name, QString *error);
   bool setCurrentProfile(const QString &name, QString *error);
+
+  bool outputsActive() const;
+  VideoResolution currentOutputResolution() const;
+  double currentFps() const;
+  ReplayBufferSettings currentReplayBufferSettings() const;
+  bool setOutputResolution(const ResolutionPreset &preset, QString *error) const;
+  bool setFps(const FpsPreset &preset, QString *error) const;
+  bool setReplayBufferSettings(const ReplayBufferSettings &settings, QString *error) const;
 
   QString pluginConfigPath() const;
   PluginConfig loadConfig() const;

@@ -2,11 +2,19 @@
 
 ## Goal
 
-Provide an OBS dock named `Easy Config` for fast Profile/Scene Collection switching and recording/replay-buffer directory automation.
+Provide an OBS dock named `Easy Config` for fast Profile/Scene Collection
+switching, recording/replay-buffer directory automation, video setting
+shortcuts, and replay-buffer tuning.
 
 ## MVP Behavior
 
 - Show compact controls for Profile and Scene Collection switching.
+- Show separate Resolution and FPS shortcut groups with 2-4 editable presets.
+- Resolution shortcuts update OBS output resolution only, not canvas size.
+- FPS shortcuts update OBS common FPS only.
+- Disable Resolution and FPS shortcuts while recording, streaming, or replay
+  buffer is active.
+- Show replay-buffer duration and memory fields directly in the dock.
 - Do not duplicate OBS' built-in Scene switcher in the dock; read the current
   Scene only for path preview and `{scene}` resolution.
 - Save plugin settings globally, not per OBS Profile.
@@ -33,6 +41,10 @@ Provide an OBS dock named `Easy Config` for fast Profile/Scene Collection switch
 - `manualTag`
 - `autoApplyBeforeRecording`
 - `locale`
+- `resolutionPresets`
+- `fpsPresets`
+- `lastReplayBufferSeconds`
+- `lastReplayBufferMegabytes`
 
 ## Template Variables
 
@@ -56,3 +68,7 @@ The path template is always relative to `baseDirectory`. Do not include a
 - `manualTag`: `untagged`
 - `autoApplyBeforeRecording`: `true`
 - `locale`: `auto`
+- `resolutionPresets`: `720p`, `1080p`, `1440p`, `4K`
+- `fpsPresets`: `30`, `60`, `120`
+- `lastReplayBufferSeconds`: `20`
+- `lastReplayBufferMegabytes`: `512`
