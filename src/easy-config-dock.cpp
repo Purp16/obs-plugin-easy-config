@@ -3,7 +3,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFileDialog>
-#include <QFormLayout>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -22,6 +22,7 @@ namespace easy_config {
 namespace {
 
 constexpr int kControlSpacing = 6;
+constexpr int kFormMargin = 8;
 
 QString trText(const char *key)
 {
@@ -63,6 +64,22 @@ void makeCompact(QWidget *widget, int height)
 {
   widget->setFixedHeight(height);
   widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+}
+
+QLabel *makeRowLabel(const QString &text, int height, QWidget *parent)
+{
+  auto *label = new QLabel(text, parent);
+  label->setFixedHeight(height);
+  label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  return label;
+}
+
+void addGridRow(QGridLayout *grid, int row, const QString &labelText,
+                QWidget *field, int height, QWidget *parent)
+{
+  grid->addWidget(makeRowLabel(labelText, height, parent), row, 0);
+  grid->addWidget(field, row, 1);
+  grid->setRowMinimumHeight(row, height);
 }
 
 } // namespace
@@ -119,21 +136,35 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   templateLayout->addWidget(pathTemplateEdit_, 1);
   templateLayout->addWidget(templateHelpButton);
 
-  auto *form = new QFormLayout();
+  auto *baseContainer = new QWidget(this);
+  baseContainer->setFixedHeight(controlHeight);
+  baseContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  baseContainer->setLayout(baseLayout);
+
+  auto *templateContainer = new QWidget(this);
+  templateContainer->setFixedHeight(controlHeight);
+  templateContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  templateContainer->setLayout(templateLayout);
+
+  previewLabel_->setMinimumHeight(controlHeight);
+  enablePathAutomationCheck_->setMinimumHeight(controlHeight);
+
+  auto *form = new QGridLayout();
   form->setContentsMargins(0, 0, 0, 0);
   form->setHorizontalSpacing(style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing));
   form->setVerticalSpacing(kControlSpacing);
-  form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-  form->addRow(trText("Profile"), profileCombo_);
-  form->addRow(trText("SceneCollection"), sceneCollectionCombo_);
-  form->addRow(trText("BaseDirectory"), baseLayout);
-  form->addRow(trText("PathTemplate"), templateLayout);
-  form->addRow(trText("ManualTag"), manualTagEdit_);
-  form->addRow(trText("Preview"), previewLabel_);
-  form->addRow(QString(), enablePathAutomationCheck_);
+  form->setColumnStretch(1, 1);
+  addGridRow(form, 0, trText("Profile"), profileCombo_, controlHeight, this);
+  addGridRow(form, 1, trText("SceneCollection"), sceneCollectionCombo_, controlHeight, this);
+  addGridRow(form, 2, trText("BaseDirectory"), baseContainer, controlHeight, this);
+  addGridRow(form, 3, trText("PathTemplate"), templateContainer, controlHeight, this);
+  addGridRow(form, 4, trText("ManualTag"), manualTagEdit_, controlHeight, this);
+  addGridRow(form, 5, trText("Preview"), previewLabel_, controlHeight, this);
+  form->addWidget(enablePathAutomationCheck_, 6, 1);
+  form->setRowMinimumHeight(6, controlHeight);
 
   auto *layout = new QVBoxLayout(this);
-  layout->setContentsMargins(8, 8, 8, 8);
+  layout->setContentsMargins(kFormMargin, kFormMargin, kFormMargin, kFormMargin);
   layout->setSpacing(kControlSpacing);
   layout->addLayout(form);
   layout->addStretch(1);
