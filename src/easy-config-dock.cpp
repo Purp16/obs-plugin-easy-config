@@ -23,6 +23,7 @@ namespace {
 
 constexpr int kControlSpacing = 6;
 constexpr int kFormMargin = 8;
+constexpr int kControlHeight = 36;
 
 QString trText(const char *key)
 {
@@ -63,6 +64,8 @@ QString templateHelpText()
 void makeCompact(QWidget *widget, int height)
 {
   widget->setFixedHeight(height);
+  widget->setMinimumHeight(height);
+  widget->setMaximumHeight(height);
   widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 }
 
@@ -80,6 +83,22 @@ void addGridRow(QGridLayout *grid, int row, const QString &labelText,
   grid->addWidget(makeRowLabel(labelText, height, parent), row, 0);
   grid->addWidget(field, row, 1);
   grid->setRowMinimumHeight(row, height);
+}
+
+void applyControlChrome(QWidget *widget)
+{
+  widget->setStyleSheet(QString::fromLatin1(
+    "QLineEdit, QComboBox, QPushButton {"
+    "  min-height: %1px;"
+    "  max-height: %1px;"
+    "  padding-top: 0px;"
+    "  padding-bottom: 0px;"
+    "}"
+    "QPushButton {"
+    "  padding-left: 12px;"
+    "  padding-right: 12px;"
+    "}"
+  ).arg(kControlHeight));
 }
 
 } // namespace
@@ -102,17 +121,24 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   previewLabel_->setWordWrap(true);
 
   auto *browseButton = new QPushButton(trText("Browse"), this);
-  const int controlHeight = std::max({browseButton->sizeHint().height(),
-                                      baseDirectoryEdit_->sizeHint().height(),
-                                      pathTemplateEdit_->sizeHint().height(),
-                                      profileCombo_->sizeHint().height()});
+  const int controlHeight = std::max(kControlHeight,
+                                     std::max({browseButton->sizeHint().height(),
+                                               baseDirectoryEdit_->sizeHint().height(),
+                                               pathTemplateEdit_->sizeHint().height(),
+                                               profileCombo_->sizeHint().height()}));
   makeCompact(sceneCollectionCombo_, controlHeight);
   makeCompact(profileCombo_, controlHeight);
   makeCompact(baseDirectoryEdit_, controlHeight);
   makeCompact(pathTemplateEdit_, controlHeight);
   makeCompact(manualTagEdit_, controlHeight);
-  browseButton->setFixedHeight(controlHeight);
+  makeCompact(browseButton, controlHeight);
   enablePathAutomationCheck_->setFixedHeight(controlHeight);
+  applyControlChrome(sceneCollectionCombo_);
+  applyControlChrome(profileCombo_);
+  applyControlChrome(baseDirectoryEdit_);
+  applyControlChrome(pathTemplateEdit_);
+  applyControlChrome(manualTagEdit_);
+  applyControlChrome(browseButton);
 
   auto *baseLayout = new QHBoxLayout();
   baseLayout->setContentsMargins(0, 0, 0, 0);
@@ -124,6 +150,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
   templateHelpButton->setFixedSize(controlHeight, controlHeight);
   templateHelpButton->setFocusPolicy(Qt::NoFocus);
+  applyControlChrome(templateHelpButton);
   connect(templateHelpButton, &QPushButton::clicked, this, [templateHelpButton]() {
     QToolTip::showText(templateHelpButton->mapToGlobal(
                          QPoint(-260, -templateHelpButton->height())),
@@ -154,6 +181,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   form->setHorizontalSpacing(style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing));
   form->setVerticalSpacing(kControlSpacing);
   form->setColumnStretch(1, 1);
+  form->setColumnMinimumWidth(0, 100);
   addGridRow(form, 0, trText("Profile"), profileCombo_, controlHeight, this);
   addGridRow(form, 1, trText("SceneCollection"), sceneCollectionCombo_, controlHeight, this);
   addGridRow(form, 2, trText("BaseDirectory"), baseContainer, controlHeight, this);
