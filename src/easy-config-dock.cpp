@@ -18,6 +18,9 @@
 namespace easy_config {
 namespace {
 
+constexpr int kControlHeight = 24;
+constexpr int kControlSpacing = 4;
+
 QString trText(const char *key)
 {
   return QString::fromUtf8(obs_module_text(key), -1);
@@ -56,7 +59,7 @@ QString templateHelpText()
 
 void makeCompact(QWidget *widget)
 {
-  widget->setMaximumHeight(26);
+  widget->setFixedHeight(kControlHeight);
   widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 }
 
@@ -65,37 +68,33 @@ void makeCompact(QWidget *widget)
 EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   : QWidget(parent), controller_(controller)
 {
-  sceneCombo_ = new QComboBox(this);
   sceneCollectionCombo_ = new QComboBox(this);
   profileCombo_ = new QComboBox(this);
   baseDirectoryEdit_ = new QLineEdit(this);
   pathTemplateEdit_ = new QLineEdit(this);
   manualTagEdit_ = new QLineEdit(this);
-  autoApplyCheck_ = new QCheckBox(trText("AutoApplyBeforeRecording"), this);
+  enablePathAutomationCheck_ = new QCheckBox(trText("EnablePathAutomation"), this);
   previewLabel_ = new QLabel(this);
-  applyButton_ = new QPushButton(trText("ApplyNow"), this);
 
   pathTemplateEdit_->setPlaceholderText(QLatin1String("{date}/{tag}"));
   pathTemplateEdit_->setToolTip(templateHelpText());
   manualTagEdit_->setPlaceholderText(trText("ManualTagPlaceholder"));
 
-  makeCompact(sceneCombo_);
   makeCompact(sceneCollectionCombo_);
   makeCompact(profileCombo_);
   makeCompact(baseDirectoryEdit_);
   makeCompact(pathTemplateEdit_);
   makeCompact(manualTagEdit_);
-  autoApplyCheck_->setMaximumHeight(24);
-  applyButton_->setMaximumHeight(26);
+  enablePathAutomationCheck_->setFixedHeight(kControlHeight);
 
   previewLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   previewLabel_->setWordWrap(true);
 
   auto *browseButton = new QPushButton(trText("Browse"), this);
-  browseButton->setMaximumHeight(26);
+  browseButton->setFixedHeight(kControlHeight);
   auto *baseLayout = new QHBoxLayout();
   baseLayout->setContentsMargins(0, 0, 0, 0);
-  baseLayout->setSpacing(4);
+  baseLayout->setSpacing(kControlSpacing);
   baseLayout->addWidget(baseDirectoryEdit_, 1);
   baseLayout->addWidget(browseButton);
 
@@ -103,45 +102,37 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   templateHelpButton->setIcon(style()->standardIcon(QStyle::SP_MessageBoxQuestion));
   templateHelpButton->setToolTip(templateHelpText());
   templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
-  templateHelpButton->setFixedSize(24, 24);
+  templateHelpButton->setFixedSize(kControlHeight, kControlHeight);
   templateHelpButton->setFocusPolicy(Qt::NoFocus);
 
   auto *templateLayout = new QHBoxLayout();
   templateLayout->setContentsMargins(0, 0, 0, 0);
-  templateLayout->setSpacing(4);
+  templateLayout->setSpacing(kControlSpacing);
   templateLayout->addWidget(pathTemplateEdit_, 1);
   templateLayout->addWidget(templateHelpButton);
 
   auto *form = new QFormLayout();
   form->setContentsMargins(0, 0, 0, 0);
   form->setHorizontalSpacing(style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing));
-  form->setVerticalSpacing(5);
+  form->setVerticalSpacing(kControlSpacing);
   form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-  form->addRow(trText("Scene"), sceneCombo_);
-  form->addRow(trText("SceneCollection"), sceneCollectionCombo_);
   form->addRow(trText("Profile"), profileCombo_);
+  form->addRow(trText("SceneCollection"), sceneCollectionCombo_);
   form->addRow(trText("BaseDirectory"), baseLayout);
   form->addRow(trText("PathTemplate"), templateLayout);
   form->addRow(trText("ManualTag"), manualTagEdit_);
-  form->addRow(QString(), autoApplyCheck_);
+  form->addRow(QString(), enablePathAutomationCheck_);
   form->addRow(trText("Preview"), previewLabel_);
 
   auto *layout = new QVBoxLayout(this);
   layout->setContentsMargins(8, 6, 8, 6);
-  layout->setSpacing(5);
+  layout->setSpacing(kControlSpacing);
   layout->addLayout(form);
-  layout->addWidget(applyButton_);
   layout->addStretch(1);
 
   setUiFromConfig(controller_->loadConfig());
   refreshObsState();
 
-  connect(sceneCombo_, &QComboBox::currentTextChanged, this, [this](const QString &value) {
-    QString error;
-    if (!controller_->setCurrentScene(value, &error))
-      setPreviewText(error, true);
-    updatePreview();
-  });
   connect(sceneCollectionCombo_, &QComboBox::currentTextChanged, this, [this](const QString &value) {
     QString error;
     if (!controller_->setCurrentSceneCollection(value, &error))
@@ -158,21 +149,18 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   connect(baseDirectoryEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(pathTemplateEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(manualTagEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
-  connect(autoApplyCheck_, &QCheckBox::toggled, this, [this]() {
-    updateApplyButtonVisibility();
+  connect(enablePathAutomationCheck_, &QCheckBox::toggled, this, [this]() {
+    updatePreview();
     saveCurrentConfig();
   });
-  connect(applyButton_, &QPushButton::clicked, this, &EasyConfigDock::applyNow);
   connect(controller_, &ObsController::obsStateChanged, this, &EasyConfigDock::refreshObsState);
   connect(controller_, &ObsController::recordingStarting, this, &EasyConfigDock::applyBeforeRecording);
 
-  updateApplyButtonVisibility();
   updatePreview();
 }
 
 void EasyConfigDock::refreshObsState()
 {
-  refillCombo(sceneCombo_, controller_->sceneNames(), controller_->currentSceneName());
   refillCombo(sceneCollectionCombo_, controller_->sceneCollectionNames(),
               controller_->currentSceneCollectionName());
   refillCombo(profileCombo_, controller_->profileNames(), controller_->currentProfileName());
@@ -202,25 +190,6 @@ void EasyConfigDock::updatePreview()
   saveCurrentConfig();
 }
 
-void EasyConfigDock::updateApplyButtonVisibility()
-{
-  applyButton_->setVisible(!autoApplyCheck_->isChecked());
-}
-
-void EasyConfigDock::applyNow()
-{
-  QString path;
-  QString error;
-  const PluginConfig config = configFromUi();
-  if (!controller_->applyRecordingPath(config, &path, &error)) {
-    setPreviewText(error, true);
-    return;
-  }
-
-  saveCurrentConfig();
-  setPreviewText(path);
-}
-
 void EasyConfigDock::applyBeforeRecording()
 {
   const PluginConfig config = configFromUi();
@@ -243,17 +212,20 @@ PluginConfig EasyConfigDock::configFromUi() const
   config.baseDirectory = toStdStringCompat(baseDirectoryEdit_->text());
   config.pathTemplate = toStdStringCompat(pathTemplateEdit_->text());
   config.manualTag = toStdStringCompat(manualTagEdit_->text());
-  config.autoApplyBeforeRecording = autoApplyCheck_->isChecked();
+  config.autoApplyBeforeRecording = enablePathAutomationCheck_->isChecked();
   config.locale = "auto";
   return config;
 }
 
 void EasyConfigDock::setUiFromConfig(const PluginConfig &config)
 {
-  baseDirectoryEdit_->setText(QString::fromUtf8(config.baseDirectory.c_str(), -1));
+  QString baseDirectory = QString::fromUtf8(config.baseDirectory.c_str(), -1);
+  if (baseDirectory.isEmpty())
+    baseDirectory = controller_->currentRecordingDirectory();
+  baseDirectoryEdit_->setText(baseDirectory);
   pathTemplateEdit_->setText(QString::fromUtf8(config.pathTemplate.c_str(), -1));
   manualTagEdit_->setText(QString::fromUtf8(config.manualTag.c_str(), -1));
-  autoApplyCheck_->setChecked(config.autoApplyBeforeRecording);
+  enablePathAutomationCheck_->setChecked(config.autoApplyBeforeRecording);
 }
 
 void EasyConfigDock::saveCurrentConfig()

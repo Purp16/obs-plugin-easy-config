@@ -74,6 +74,16 @@ bool setConfigPath(config_t *config, const QString &compoundKey,
   return config_save_safe(config, "tmp", nullptr) == CONFIG_SUCCESS;
 }
 
+QString getConfigPath(config_t *config, const QString &compoundKey)
+{
+  const auto parts = compoundKey.split('/');
+  if (parts.size() != 2)
+    return {};
+
+  return obsString(config_get_string(config, parts[0].toUtf8().constData(),
+                                    parts[1].toUtf8().constData()));
+}
+
 void frontendEventThunk(enum obs_frontend_event event, void *data)
 {
   auto *controller = static_cast<ObsController *>(data);
@@ -146,6 +156,15 @@ QString ObsController::currentProfileName() const
   const QString name = obsString(value);
   bfree(value);
   return name;
+}
+
+QString ObsController::currentRecordingDirectory() const
+{
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig)
+    return {};
+
+  return getConfigPath(profileConfig, recordingConfigKey(profileConfig));
 }
 
 bool ObsController::setCurrentScene(const QString &name, QString *error)

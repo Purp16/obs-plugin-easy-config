@@ -2,17 +2,24 @@
 
 ## Goal
 
-Provide an OBS dock named `Easy Config` for fast OBS state switching and recording-directory automation.
+Provide an OBS dock named `Easy Config` for fast Profile/Scene Collection switching and recording-directory automation.
 
 ## MVP Behavior
 
-- Show compact controls for Scene, Scene Collection, and Profile.
-- Allow switching those OBS states from the dock.
+- Show compact controls for Profile and Scene Collection switching.
+- Do not duplicate OBS' built-in Scene switcher in the dock; read the current
+  Scene only for path preview and `{scene}` resolution.
 - Save plugin settings globally, not per OBS Profile.
+- Initialize `baseDirectory` from the current OBS recording directory when the
+  plugin does not have a saved base directory yet.
 - Use `baseDirectory` plus `{date}/{tag}` as the default recording path rule.
 - Resolve and preview the target path in the dock.
-- Apply the path manually with `Apply Now`.
-- Apply the path automatically when recording is starting if enabled.
+- Treat `autoApplyBeforeRecording` as the user-facing "Enable recording path
+  management" switch.
+- When enabled, apply the resolved path automatically when recording is
+  starting.
+- When disabled, keep previewing and saving plugin settings, but do not write
+  OBS' recording directory.
 - Create missing directories before writing the OBS recording path.
 - Show errors in the dock instead of failing silently.
 

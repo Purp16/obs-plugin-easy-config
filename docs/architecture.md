@@ -21,16 +21,21 @@ Important modules:
 
 `ObsController` owns direct OBS API calls:
 
-- Listing and switching Scene, Scene Collection, and Profile.
+- Listing and switching Scene Collection and Profile.
+- Reading the current Scene for path-template variables without replacing OBS'
+  built-in Scene switcher.
+- Reading the current OBS recording directory to initialize the plugin base
+  directory when no plugin value has been saved yet.
 - Loading/saving plugin-owned config path.
 - Resolving the current OBS state into path-template variables.
-- Writing the resolved path to the active OBS profile recording-path setting.
+- Writing the resolved path to the active OBS profile recording-path setting
+  only when recording path management is enabled and recording is starting.
 
 ## UI
 
 `EasyConfigDock` is a thin Qt Widgets form:
 
-- It displays current OBS state.
+- It exposes Profile and Scene Collection switching plus recording-path fields.
 - It persists form changes through `ObsController`.
 - It previews paths and triggers apply operations.
 

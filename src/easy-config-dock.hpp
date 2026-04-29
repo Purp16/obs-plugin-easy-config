@@ -23,8 +23,6 @@ private slots:
   void refreshObsState();
   void browseBaseDirectory();
   void updatePreview();
-  void updateApplyButtonVisibility();
-  void applyNow();
   void applyBeforeRecording();
 
 private:
@@ -35,15 +33,13 @@ private:
   void refillCombo(QComboBox *combo, const QStringList &items, const QString &current);
 
   ObsController *controller_ = nullptr;
-  QComboBox *sceneCombo_ = nullptr;
   QComboBox *sceneCollectionCombo_ = nullptr;
   QComboBox *profileCombo_ = nullptr;
   QLineEdit *baseDirectoryEdit_ = nullptr;
   QLineEdit *pathTemplateEdit_ = nullptr;
   QLineEdit *manualTagEdit_ = nullptr;
-  QCheckBox *autoApplyCheck_ = nullptr;
+  QCheckBox *enablePathAutomationCheck_ = nullptr;
   QLabel *previewLabel_ = nullptr;
-  QPushButton *applyButton_ = nullptr;
 };
 
 } // namespace easy_config

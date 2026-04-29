@@ -23,6 +23,7 @@ public:
   QString currentSceneName() const;
   QString currentSceneCollectionName() const;
   QString currentProfileName() const;
+  QString currentRecordingDirectory() const;
 
   bool setCurrentScene(const QString &name, QString *error);
   bool setCurrentSceneCollection(const QString &name, QString *error);
