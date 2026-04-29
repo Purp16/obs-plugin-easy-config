@@ -4,14 +4,12 @@
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 
+#include <QAbstractButton>
 #include <QDockWidget>
-#include <QHBoxLayout>
-#include <QLabel>
 #include <QMainWindow>
-#include <QMouseEvent>
 #include <QPointer>
 #include <QString>
-#include <QToolButton>
+#include <QTimer>
 #include <QWidget>
 
 OBS_DECLARE_MODULE()
@@ -22,7 +20,6 @@ namespace {
 easy_config::ObsController *controller = nullptr;
 QPointer<easy_config::EasyConfigDock> dock;
 bool frontendExiting = false;
-constexpr auto *kDockTitleBarObjectName = "obs-plugin-easy-config-titlebar";
 
 QString moduleText(const char *key)
 {
@@ -43,69 +40,26 @@ QDockWidget *findDockWidget(QMainWindow *mainWindow)
   for (QDockWidget *dockWidget : dockWidgets) {
     if (dockWidget->widget() == dock ||
         dockWidget->findChild<easy_config::EasyConfigDock *>(
-          QLatin1String("obs-plugin-easy-config")) == dock)
+          QLatin1String("obs-plugin-easy-config")) == dock ||
+        dockWidget->windowTitle() == moduleText("EasyConfig"))
       return dockWidget;
   }
 
   return nullptr;
 }
 
-class DockTitleBar final : public QWidget {
-public:
-  explicit DockTitleBar(QDockWidget *dockWidget, const QString &title)
-    : QWidget(dockWidget), dockWidget_(dockWidget)
-  {
-    setObjectName(QLatin1String(kDockTitleBarObjectName));
+bool isDockCloseButton(QAbstractButton *button)
+{
+  const QString objectName = button->objectName();
+  if (objectName.contains(QLatin1String("close"), Qt::CaseInsensitive))
+    return true;
 
-    auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(6, 0, 4, 0);
-    layout->setSpacing(4);
+  const QString closeText = moduleText("CloseDock");
+  return button->toolTip() == closeText || button->accessibleName() == closeText ||
+         button->text() == closeText;
+}
 
-    auto *titleLabel = new QLabel(title, this);
-    titleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-    titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-
-    floatButton_ = new QToolButton(this);
-    floatButton_->setObjectName(QLatin1String("obs-plugin-easy-config-floatbutton"));
-    floatButton_->setAutoRaise(true);
-    floatButton_->setFocusPolicy(Qt::NoFocus);
-    floatButton_->setFixedSize(18, 18);
-
-    layout->addWidget(titleLabel);
-    layout->addWidget(floatButton_);
-
-    QObject::connect(floatButton_, &QToolButton::clicked, this, [this]() {
-      if (dockWidget_)
-        dockWidget_->setFloating(!dockWidget_->isFloating());
-    });
-    QObject::connect(dockWidget, &QDockWidget::topLevelChanged, this,
-                     [this]() { refreshFloatButton(); });
-
-    refreshFloatButton();
-  }
-
-protected:
-  void mousePressEvent(QMouseEvent *event) override { event->ignore(); }
-  void mouseMoveEvent(QMouseEvent *event) override { event->ignore(); }
-  void mouseReleaseEvent(QMouseEvent *event) override { event->ignore(); }
-  void mouseDoubleClickEvent(QMouseEvent *event) override { event->ignore(); }
-
-private:
-  void refreshFloatButton()
-  {
-    if (!dockWidget_ || !floatButton_)
-      return;
-
-    const bool floating = dockWidget_->isFloating();
-    floatButton_->setText(floating ? QString::fromLatin1("D") : QString::fromLatin1("F"));
-    floatButton_->setToolTip(floating ? QObject::tr("Dock") : QObject::tr("Float"));
-  }
-
-  QPointer<QDockWidget> dockWidget_;
-  QToolButton *floatButton_ = nullptr;
-};
-
-void installDockTitleBar(QMainWindow *mainWindow)
+void removeDockCloseButton(QMainWindow *mainWindow)
 {
   QDockWidget *dockWidget = findDockWidget(mainWindow);
   if (!dockWidget)
@@ -113,14 +67,23 @@ void installDockTitleBar(QMainWindow *mainWindow)
 
   dockWidget->setFeatures(dockWidget->features() & ~QDockWidget::DockWidgetClosable);
 
-  QWidget *currentTitleBar = dockWidget->titleBarWidget();
-  if (currentTitleBar &&
-      currentTitleBar->objectName() == QLatin1String(kDockTitleBarObjectName))
-    return;
+  const auto buttons = dockWidget->findChildren<QAbstractButton *>();
+  for (QAbstractButton *button : buttons) {
+    if (!isDockCloseButton(button))
+      continue;
 
-  dockWidget->setTitleBarWidget(new DockTitleBar(dockWidget, moduleText("EasyConfig")));
-  dockWidget->updateGeometry();
-  dockWidget->update();
+    button->hide();
+    button->setEnabled(false);
+  }
+}
+
+void scheduleRemoveDockCloseButton(QMainWindow *mainWindow)
+{
+  removeDockCloseButton(mainWindow);
+
+  QTimer::singleShot(0, mainWindow, [mainWindow]() { removeDockCloseButton(mainWindow); });
+  QTimer::singleShot(250, mainWindow, [mainWindow]() { removeDockCloseButton(mainWindow); });
+  QTimer::singleShot(1000, mainWindow, [mainWindow]() { removeDockCloseButton(mainWindow); });
 }
 
 } // namespace
@@ -150,7 +113,7 @@ bool obs_module_load()
     controller = nullptr;
     return false;
   }
-  installDockTitleBar(mainWindow);
+  scheduleRemoveDockCloseButton(mainWindow);
   blog(LOG_INFO, "[obs-plugin-easy-config] loaded");
   return true;
 }

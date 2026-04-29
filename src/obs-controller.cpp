@@ -107,6 +107,9 @@ void frontendEventThunk(enum obs_frontend_event event, void *data)
   case OBS_FRONTEND_EVENT_RECORDING_STARTING:
     emit controller->recordingStarting();
     break;
+  case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTING:
+    emit controller->replayBufferStarting();
+    break;
   default:
     break;
   }

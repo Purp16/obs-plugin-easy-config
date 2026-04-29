@@ -1,6 +1,6 @@
 # OBS Plugin Easy Config
 
-An OBS Studio dock plugin for fast Profile/Scene Collection switching and recording-path automation.
+An OBS Studio dock plugin for fast Profile/Scene Collection switching and recording/replay-buffer path automation.
 
 ## Current Status
 

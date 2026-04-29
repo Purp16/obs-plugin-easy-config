@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build an OBS Studio plugin that adds a dock panel for fast Scene/Profile/Scene Collection switching and automatic recording-directory routing.
+Build an OBS Studio plugin that adds a dock panel for fast Scene/Profile/Scene Collection switching and automatic recording/replay-buffer directory routing.
 
 The most important workflow is:
 
@@ -11,6 +11,7 @@ The most important workflow is:
 3. Plugin creates the target directory if needed.
 4. Plugin updates the active OBS profile recording directory.
 5. Recording starts into the intended subdirectory.
+6. Replay buffer uses the same managed directory before it starts.
 
 ## Options Considered
 
@@ -189,7 +190,10 @@ Relevant keys:
 
 The plugin should inspect `Output/Mode` and, for advanced mode, `AdvOut/RecType` to choose the key to update.
 
-The plugin should apply the path before recording starts, ideally on `OBS_FRONTEND_EVENT_RECORDING_STARTING`, and also provide an explicit "Apply now" button in the dock.
+Replay buffer output uses the same recording directory setting. The plugin
+should apply the path before recording starts, ideally on
+`OBS_FRONTEND_EVENT_RECORDING_STARTING`, and before replay buffer starts via
+`OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTING`.
 
 ## Rule Engine
 
@@ -213,7 +217,8 @@ Rules:
 - Unknown variables should be visible in validation errors.
 - Empty variables should either resolve to a fallback like `Unknown` or be skipped by a setting.
 - Path segments must be sanitized for Windows/macOS/Linux.
-- Directory creation should happen before OBS starts recording.
+- Directory creation should happen before OBS starts recording or starts the
+  replay buffer.
 - UI should always show a preview path.
 
 ## Foreground App Detection

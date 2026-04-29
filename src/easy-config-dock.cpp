@@ -142,6 +142,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   });
   connect(controller_, &ObsController::obsStateChanged, this, &EasyConfigDock::refreshObsState);
   connect(controller_, &ObsController::recordingStarting, this, &EasyConfigDock::applyBeforeRecording);
+  connect(controller_, &ObsController::replayBufferStarting, this, &EasyConfigDock::applyBeforeRecording);
 
   setPreviewText(QString());
 }

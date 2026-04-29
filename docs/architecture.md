@@ -29,13 +29,15 @@ Important modules:
 - Loading/saving plugin-owned config path.
 - Resolving the current OBS state into path-template variables.
 - Writing the resolved path to the active OBS profile recording-path setting
-  only when recording path management is enabled and recording is starting.
+  only when path management is enabled and recording or replay buffer is
+  starting.
 
 ## UI
 
 `EasyConfigDock` is a thin Qt Widgets form:
 
-- It exposes Profile and Scene Collection switching plus recording-path fields.
+- It exposes Profile and Scene Collection switching plus recording/replay-path
+  fields.
 - It persists form changes through `ObsController`.
 - It previews paths and triggers apply operations.
 

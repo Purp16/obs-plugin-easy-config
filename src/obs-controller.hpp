@@ -47,6 +47,7 @@ public:
 signals:
   void obsStateChanged();
   void recordingStarting();
+  void replayBufferStarting();
 
 private:
   bool frontendCallbacksAttached_ = false;
