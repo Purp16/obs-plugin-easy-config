@@ -11,6 +11,7 @@
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QStyle>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <obs-module.h>
@@ -18,7 +19,6 @@
 namespace easy_config {
 namespace {
 
-constexpr int kControlHeight = 30;
 constexpr int kControlSpacing = 6;
 
 QString trText(const char *key)
@@ -57,9 +57,9 @@ QString templateHelpText()
   return trText("PathTemplateHelp");
 }
 
-void makeCompact(QWidget *widget)
+void makeCompact(QWidget *widget, int height)
 {
-  widget->setFixedHeight(kControlHeight);
+  widget->setFixedHeight(height);
   widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 }
 
@@ -80,30 +80,35 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   pathTemplateEdit_->setToolTip(templateHelpText());
   manualTagEdit_->setPlaceholderText(trText("ManualTagPlaceholder"));
 
-  makeCompact(sceneCollectionCombo_);
-  makeCompact(profileCombo_);
-  makeCompact(baseDirectoryEdit_);
-  makeCompact(pathTemplateEdit_);
-  makeCompact(manualTagEdit_);
-  enablePathAutomationCheck_->setFixedHeight(kControlHeight);
-
   previewLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   previewLabel_->setWordWrap(true);
 
   auto *browseButton = new QPushButton(trText("Browse"), this);
-  browseButton->setFixedHeight(kControlHeight);
+  const int controlHeight = browseButton->sizeHint().height();
+  makeCompact(sceneCollectionCombo_, controlHeight);
+  makeCompact(profileCombo_, controlHeight);
+  makeCompact(baseDirectoryEdit_, controlHeight);
+  makeCompact(pathTemplateEdit_, controlHeight);
+  makeCompact(manualTagEdit_, controlHeight);
+  browseButton->setFixedHeight(controlHeight);
+  enablePathAutomationCheck_->setFixedHeight(controlHeight);
+
   auto *baseLayout = new QHBoxLayout();
   baseLayout->setContentsMargins(0, 0, 0, 0);
   baseLayout->setSpacing(kControlSpacing);
   baseLayout->addWidget(baseDirectoryEdit_, 1);
   baseLayout->addWidget(browseButton);
 
-  auto *templateHelpButton = new QPushButton(this);
-  templateHelpButton->setIcon(style()->standardIcon(QStyle::SP_MessageBoxQuestion));
+  auto *templateHelpButton = new QPushButton(QLatin1String("?"), this);
   templateHelpButton->setToolTip(templateHelpText());
   templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
-  templateHelpButton->setFixedSize(kControlHeight, kControlHeight);
+  templateHelpButton->setFixedSize(controlHeight, controlHeight);
   templateHelpButton->setFocusPolicy(Qt::NoFocus);
+  connect(templateHelpButton, &QPushButton::clicked, this, [templateHelpButton]() {
+    QToolTip::showText(templateHelpButton->mapToGlobal(
+                         QPoint(0, templateHelpButton->height())),
+                       templateHelpText(), templateHelpButton);
+  });
 
   auto *templateLayout = new QHBoxLayout();
   templateLayout->setContentsMargins(0, 0, 0, 0);

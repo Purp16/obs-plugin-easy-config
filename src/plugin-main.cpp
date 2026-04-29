@@ -4,6 +4,7 @@
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 
+#include <QDockWidget>
 #include <QMainWindow>
 #include <QString>
 
@@ -18,6 +19,15 @@ easy_config::EasyConfigDock *dock = nullptr;
 QString moduleText(const char *key)
 {
   return QString::fromUtf8(obs_module_text(key), -1);
+}
+
+void removeDockCloseButton(QMainWindow *mainWindow)
+{
+  auto *dockWidget = mainWindow->findChild<QDockWidget *>(QLatin1String("obs-plugin-easy-config"));
+  if (!dockWidget)
+    return;
+
+  dockWidget->setFeatures(dockWidget->features() & ~QDockWidget::DockWidgetClosable);
 }
 
 } // namespace
@@ -39,6 +49,7 @@ bool obs_module_load()
   dock->setWindowTitle(moduleText("EasyConfig"));
 
   obs_frontend_add_dock_by_id("obs-plugin-easy-config", obs_module_text("EasyConfig"), dock);
+  removeDockCloseButton(mainWindow);
   blog(LOG_INFO, "[obs-plugin-easy-config] loaded");
   return true;
 }
