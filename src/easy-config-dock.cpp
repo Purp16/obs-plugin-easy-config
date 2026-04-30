@@ -13,6 +13,7 @@
 #include <QLayout>
 #include <QFontMetrics>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QScrollArea>
@@ -37,6 +38,24 @@ namespace {
 constexpr int kControlSpacing = 5;
 constexpr int kFormMargin = 6;
 constexpr int kTwoColumnBreakpoint = 220;
+
+class PersistentCheckMenu : public QMenu {
+public:
+  explicit PersistentCheckMenu(QWidget *parent = nullptr) : QMenu(parent) {}
+
+protected:
+  void mouseReleaseEvent(QMouseEvent *event) override
+  {
+    QAction *action = actionAt(event->pos());
+    if (action && action->isCheckable() && action->isEnabled()) {
+      action->setChecked(!action->isChecked());
+      event->accept();
+      return;
+    }
+
+    QMenu::mouseReleaseEvent(event);
+  }
+};
 
 class FlowLayout : public QLayout {
 public:
@@ -979,7 +998,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   previewLabel_ = new QLabel(this);
   statusLabel_ = new QLabel(this);
   settingsButton_ = new QPushButton(trText("SettingsMenuButton"), this);
-  settingsMenu_ = new QMenu(settingsButton_);
+  settingsMenu_ = new PersistentCheckMenu(settingsButton_);
   settingsButton_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   settingsButton_->setFixedSize(52, 24);
   settingsButton_->setMinimumHeight(0);
