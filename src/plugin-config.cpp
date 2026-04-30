@@ -333,10 +333,18 @@ PluginConfig load_plugin_config(const std::string &path)
     json_int_value(json, "lastReplayBufferSeconds", config.lastReplayBufferSeconds);
   config.lastReplayBufferMegabytes =
     json_int_value(json, "lastReplayBufferMegabytes", config.lastReplayBufferMegabytes);
-  config.showProfileSceneCollection =
-    json_bool_value(json, "showProfileSceneCollection", config.showProfileSceneCollection);
-  config.showVideoPresets =
-    json_bool_value(json, "showVideoPresets", config.showVideoPresets);
+  config.showProfile = json_bool_value(
+    json, "showProfile",
+    json_bool_value(json, "showProfileSceneCollection", config.showProfile));
+  config.showSceneCollection = json_bool_value(
+    json, "showSceneCollection",
+    json_bool_value(json, "showProfileSceneCollection", config.showSceneCollection));
+  config.showResolutionPresets = json_bool_value(
+    json, "showResolutionPresets",
+    json_bool_value(json, "showVideoPresets", config.showResolutionPresets));
+  config.showFpsPresets = json_bool_value(
+    json, "showFpsPresets",
+    json_bool_value(json, "showVideoPresets", config.showFpsPresets));
   config.showReplayBuffer =
     json_bool_value(json, "showReplayBuffer", config.showReplayBuffer);
   config.showPathAutomation =
@@ -424,10 +432,14 @@ bool save_plugin_config(const std::string &path, const PluginConfig &config,
          << config.lastReplayBufferSeconds << ",\n"
          << "  \"lastReplayBufferMegabytes\": "
          << config.lastReplayBufferMegabytes << ",\n"
-         << "  \"showProfileSceneCollection\": "
-         << (config.showProfileSceneCollection ? "true" : "false") << ",\n"
-         << "  \"showVideoPresets\": "
-         << (config.showVideoPresets ? "true" : "false") << ",\n"
+         << "  \"showProfile\": "
+         << (config.showProfile ? "true" : "false") << ",\n"
+         << "  \"showSceneCollection\": "
+         << (config.showSceneCollection ? "true" : "false") << ",\n"
+         << "  \"showResolutionPresets\": "
+         << (config.showResolutionPresets ? "true" : "false") << ",\n"
+         << "  \"showFpsPresets\": "
+         << (config.showFpsPresets ? "true" : "false") << ",\n"
          << "  \"showReplayBuffer\": "
          << (config.showReplayBuffer ? "true" : "false") << ",\n"
          << "  \"showPathAutomation\": "

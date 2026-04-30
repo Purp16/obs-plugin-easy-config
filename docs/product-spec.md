@@ -9,12 +9,21 @@ shortcuts, and replay-buffer tuning.
 ## MVP Behavior
 
 - Show compact controls for Profile and Scene Collection switching.
-- Show separate Resolution and FPS shortcut groups with 2-4 editable presets.
-- Resolution shortcuts update OBS output resolution only, not canvas size.
-- FPS shortcuts update OBS common FPS only.
+- Show separate Resolution and FPS shortcut groups with editable presets.
+  Preset counts are user-controlled and are not capped at four.
+- Resolution shortcuts update both OBS base canvas resolution and output
+  resolution so the two stay aligned.
+- FPS shortcuts update OBS FPS mode and values, including integer presets such
+  as 120 FPS.
 - Disable Resolution and FPS shortcuts while recording, streaming, or replay
   buffer is active.
 - Show replay-buffer duration and memory fields directly in the dock.
+- Use a compact responsive dock layout. Paired sections use two columns only
+  when each item can keep at least `220` px. Extra vertical space stays below
+  the content instead of being distributed between rows.
+- Keep Preview as the resolved path. Status messages are shown separately.
+- Keep the settings entry as a small bottom-right `Options` button, not a top
+  toolbar or bottom bar.
 - Do not duplicate OBS' built-in Scene switcher in the dock; read the current
   Scene only for path preview and `{scene}` resolution.
 - Save plugin settings globally, not per OBS Profile.
@@ -22,6 +31,9 @@ shortcuts, and replay-buffer tuning.
   plugin does not have a saved base directory yet.
 - Use `baseDirectory` plus `{date}/{tag}` as the default recording/replay path rule.
 - Resolve and preview the target path in the dock.
+- Previewing a path must not create directories. Only create or verify the
+  target directory when applying the path to OBS or immediately before
+  recording/replay-buffer start.
 - Treat `autoApplyBeforeRecording` as the user-facing "Enable recording/replay path
   management" switch.
 - When enabled, apply the resolved path automatically when recording is
@@ -45,6 +57,13 @@ shortcuts, and replay-buffer tuning.
 - `fpsPresets`
 - `lastReplayBufferSeconds`
 - `lastReplayBufferMegabytes`
+- `showProfile`
+- `showSceneCollection`
+- `showResolutionPresets`
+- `showFpsPresets`
+- `showReplayBuffer`
+- `showPathAutomation`
+- `showPreviewStatus`
 
 ## Template Variables
 
@@ -72,3 +91,4 @@ The path template is always relative to `baseDirectory`. Do not include a
 - `fpsPresets`: `30`, `60`, `120`
 - `lastReplayBufferSeconds`: `20`
 - `lastReplayBufferMegabytes`: `512`
+- all dock section visibility fields: `true`

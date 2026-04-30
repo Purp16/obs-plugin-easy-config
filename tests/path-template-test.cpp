@@ -159,8 +159,10 @@ TEST_CASE("plugin config preserves next version presets and notification setting
   };
   config.lastReplayBufferSeconds = 90;
   config.lastReplayBufferMegabytes = 2048;
-  config.showProfileSceneCollection = false;
-  config.showVideoPresets = true;
+  config.showProfile = false;
+  config.showSceneCollection = true;
+  config.showResolutionPresets = false;
+  config.showFpsPresets = true;
   config.showReplayBuffer = false;
   config.showPathAutomation = true;
   config.showPreviewStatus = false;
@@ -178,8 +180,10 @@ TEST_CASE("plugin config preserves next version presets and notification setting
   CHECK(std::abs(loaded.fpsPresets[1].fps - 59.94) < 0.001);
   CHECK(loaded.lastReplayBufferSeconds == 90);
   CHECK(loaded.lastReplayBufferMegabytes == 2048);
-  CHECK(!loaded.showProfileSceneCollection);
-  CHECK(loaded.showVideoPresets);
+  CHECK(!loaded.showProfile);
+  CHECK(loaded.showSceneCollection);
+  CHECK(!loaded.showResolutionPresets);
+  CHECK(loaded.showFpsPresets);
   CHECK(!loaded.showReplayBuffer);
   CHECK(loaded.showPathAutomation);
   CHECK(!loaded.showPreviewStatus);

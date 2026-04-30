@@ -222,7 +222,14 @@ hdiutil detach /Volumes/OBS
 - Default rule: `baseDirectory` plus `{date}/{tag}`
 - Empty tag fallback: `untagged`
 - First version intentionally does not implement `{app}` foreground application detection.
-- Resolution shortcuts change OBS output resolution only.
-- FPS shortcuts change OBS common FPS only.
+- Resolution shortcuts change both OBS base canvas resolution and output
+  resolution.
+- FPS shortcuts update OBS FPS mode and values, including integer presets such
+  as 120 FPS.
 - Video setting shortcut buttons are disabled while recording, streaming, or
   replay buffer is active.
+- The dock uses a compact responsive layout. Paired sections switch from two
+  columns to one column when each item would be narrower than 220 px. Extra
+  vertical space remains below the dock content instead of stretching row gaps.
+- The bottom-right `Options` button opens display toggles, the combined
+  Resolution/FPS preset editor, and About.

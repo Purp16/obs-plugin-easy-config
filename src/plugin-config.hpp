@@ -45,8 +45,10 @@ struct PluginConfig {
   };
   int lastReplayBufferSeconds = 20;
   int lastReplayBufferMegabytes = 512;
-  bool showProfileSceneCollection = true;
-  bool showVideoPresets = true;
+  bool showProfile = true;
+  bool showSceneCollection = true;
+  bool showResolutionPresets = true;
+  bool showFpsPresets = true;
   bool showReplayBuffer = true;
   bool showPathAutomation = true;
   bool showPreviewStatus = true;

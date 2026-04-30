@@ -7,6 +7,7 @@
 
 #include <QDate>
 
+#include <cmath>
 #include <filesystem>
 
 namespace easy_config {
@@ -42,6 +43,58 @@ QString configPath()
   QString qpath = obsString(path);
   bfree(path);
   return qpath;
+}
+
+void setFpsConfig(config_t *config, double fps)
+{
+  const double rounded = std::round(fps);
+  if (std::abs(fps - rounded) < 0.005) {
+    config_set_uint(config, "Video", "FPSType", 1);
+    config_set_uint(config, "Video", "FPSInt", static_cast<uint64_t>(rounded));
+    config_set_uint(config, "Video", "FPSNum", static_cast<uint64_t>(rounded));
+    config_set_uint(config, "Video", "FPSDen", 1);
+    config_set_string(config, "Video", "FPSCommon", format_fps_value(fps).c_str());
+    return;
+  }
+
+  const uint64_t denominator = 1000;
+  const uint64_t numerator = static_cast<uint64_t>(std::round(fps * denominator));
+  config_set_uint(config, "Video", "FPSType", 2);
+  config_set_uint(config, "Video", "FPSNum", numerator);
+  config_set_uint(config, "Video", "FPSDen", denominator);
+  config_set_string(config, "Video", "FPSCommon", format_fps_value(fps).c_str());
+}
+
+double readFpsConfig(config_t *config)
+{
+  const uint64_t fpsType = config_get_uint(config, "Video", "FPSType");
+  if (fpsType == 0) {
+    const QString fps = obsString(config_get_string(config, "Video", "FPSCommon"));
+    bool ok = false;
+    const double value = fps.toDouble(&ok);
+    if (ok && value > 0.0)
+      return value;
+  }
+  if (fpsType == 1) {
+    const uint64_t value = config_get_uint(config, "Video", "FPSInt");
+    if (value > 0)
+      return static_cast<double>(value);
+  }
+  if (fpsType == 2) {
+    const uint64_t numerator = config_get_uint(config, "Video", "FPSNum");
+    const uint64_t denominator = config_get_uint(config, "Video", "FPSDen");
+    if (numerator > 0 && denominator > 0)
+      return static_cast<double>(numerator) / static_cast<double>(denominator);
+  }
+
+  const QString fps = obsString(config_get_string(config, "Video", "FPSCommon"));
+  bool ok = false;
+  const double value = fps.toDouble(&ok);
+  if (ok && value > 0.0)
+    return value;
+
+  const uint64_t intValue = config_get_uint(config, "Video", "FPSInt");
+  return intValue > 0 ? static_cast<double>(intValue) : 0.0;
 }
 
 QString recordingConfigKey(config_t *config)
@@ -326,10 +379,7 @@ double ObsController::currentFps() const
   if (!profileConfig)
     return 0.0;
 
-  const QString fps = obsString(config_get_string(profileConfig, "Video", "FPSCommon"));
-  bool ok = false;
-  const double value = fps.toDouble(&ok);
-  return ok ? value : 0.0;
+  return readFpsConfig(profileConfig);
 }
 
 ReplayBufferSettings ObsController::currentReplayBufferSettings() const
@@ -367,6 +417,10 @@ bool ObsController::setOutputResolution(const ResolutionPreset &preset, QString 
     return false;
   }
 
+  config_set_uint(profileConfig, "Video", "BaseCX",
+                  static_cast<uint64_t>(preset.width));
+  config_set_uint(profileConfig, "Video", "BaseCY",
+                  static_cast<uint64_t>(preset.height));
   config_set_uint(profileConfig, "Video", "OutputCX",
                   static_cast<uint64_t>(preset.width));
   config_set_uint(profileConfig, "Video", "OutputCY",
@@ -401,9 +455,7 @@ bool ObsController::setFps(const FpsPreset &preset, QString *error) const
     return false;
   }
 
-  config_set_uint(profileConfig, "Video", "FPSType", 0);
-  config_set_string(profileConfig, "Video", "FPSCommon",
-                    format_fps_value(preset.fps).c_str());
+  setFpsConfig(profileConfig, preset.fps);
   if (!saveObsConfig(profileConfig)) {
     if (error)
       *error = "Unable to save OBS video settings.";
@@ -496,8 +548,19 @@ bool ObsController::applyRecordingPath(const PluginConfig &config, QString *reso
 
   const QString path = QString::fromUtf8(result.path.c_str(), -1);
   std::error_code ec;
-  if (!std::filesystem::create_directories(result.path, ec) &&
-      !std::filesystem::exists(result.path)) {
+  const std::filesystem::path targetDirectory(result.path);
+  if (std::filesystem::exists(targetDirectory, ec)) {
+    if (ec || !std::filesystem::is_directory(targetDirectory, ec)) {
+      if (error)
+        *error = "Recording path exists but is not a directory: " + path;
+      return false;
+    }
+  } else if (!std::filesystem::create_directories(targetDirectory, ec)) {
+    if (error)
+      *error = "Unable to create directory: " + path;
+    return false;
+  }
+  if (ec) {
     if (error)
       *error = "Unable to create directory: " + path;
     return false;

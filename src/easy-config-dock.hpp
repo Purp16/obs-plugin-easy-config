@@ -12,6 +12,8 @@ class QLabel;
 class QLayout;
 class QMenu;
 class QPushButton;
+class QResizeEvent;
+class QScrollArea;
 class QSpinBox;
 class QAction;
 
@@ -34,6 +36,10 @@ private slots:
   void editFpsPresets();
   void applyReplayBufferSettings();
   void updateSectionVisibility();
+  void openAboutDialog();
+
+protected:
+  void resizeEvent(QResizeEvent *event) override;
 
 private:
   PluginConfig configFromUi() const;
@@ -45,7 +51,8 @@ private:
   int resolutionPresetIndex(QObject *sender) const;
   int fpsPresetIndex(QObject *sender) const;
   void saveCurrentConfig();
-  void setPreviewText(const QString &message, bool error = false);
+  void setPreviewText(const QString &path, bool error = false);
+  void setStatusText(const QString &message, bool error = false);
   void refillCombo(QComboBox *combo, const QStringList &items, const QString &current);
 
   ObsController *controller_ = nullptr;
@@ -58,26 +65,39 @@ private:
   QCheckBox *enablePathAutomationCheck_ = nullptr;
   QLayout *resolutionButtonLayout_ = nullptr;
   QLayout *fpsButtonLayout_ = nullptr;
-  QPushButton *editResolutionButton_ = nullptr;
-  QPushButton *editFpsButton_ = nullptr;
   QSpinBox *replaySecondsSpin_ = nullptr;
   QSpinBox *replayMegabytesSpin_ = nullptr;
   QPushButton *applyReplayButton_ = nullptr;
   QLabel *previewLabel_ = nullptr;
+  QLabel *statusLabel_ = nullptr;
+  QScrollArea *scrollArea_ = nullptr;
+  QWidget *profileControl_ = nullptr;
+  QWidget *sceneCollectionControl_ = nullptr;
+  QWidget *resolutionControl_ = nullptr;
+  QWidget *fpsControl_ = nullptr;
+  QWidget *replayControl_ = nullptr;
+  QWidget *baseDirectoryControl_ = nullptr;
+  QWidget *pathTemplateControl_ = nullptr;
+  QWidget *manualTagControl_ = nullptr;
+  QWidget *previewControl_ = nullptr;
+  QWidget *statusControl_ = nullptr;
   QWidget *profileSceneSection_ = nullptr;
   QWidget *videoPresetSection_ = nullptr;
   QWidget *replaySection_ = nullptr;
   QWidget *pathSection_ = nullptr;
-  QWidget *previewSection_ = nullptr;
+  QWidget *contentWidget_ = nullptr;
   QPushButton *settingsButton_ = nullptr;
   QMenu *settingsMenu_ = nullptr;
-  QAction *showProfileSceneAction_ = nullptr;
-  QAction *showVideoPresetsAction_ = nullptr;
+  QAction *showProfileAction_ = nullptr;
+  QAction *showSceneCollectionAction_ = nullptr;
+  QAction *showResolutionPresetsAction_ = nullptr;
+  QAction *showFpsPresetsAction_ = nullptr;
   QAction *showReplayBufferAction_ = nullptr;
   QAction *showPathAutomationAction_ = nullptr;
   QAction *showPreviewStatusAction_ = nullptr;
   std::vector<QPushButton *> resolutionButtons_;
   std::vector<QPushButton *> fpsButtons_;
+  std::vector<QWidget *> wrapSections_;
 };
 
 } // namespace easy_config
