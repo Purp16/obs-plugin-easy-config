@@ -1,0 +1,171 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev: core build + test",
+      "dependsOn": [
+        "test: core"
+      ],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "cmake: configure core tests",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "-S",
+        "${workspaceFolder}",
+        "-B",
+        "${workspaceFolder}/build",
+        "-G",
+        "Ninja",
+        "-DEASY_CONFIG_BUILD_PLUGIN=OFF"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "cmake: build core tests",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/build"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": [
+        "cmake: configure core tests"
+      ],
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "test: core",
+      "type": "shell",
+      "command": "ctest",
+      "args": [
+        "--test-dir",
+        "${workspaceFolder}/build",
+        "--output-on-failure"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": [
+        "cmake: build core tests"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: OBS plugin build + test",
+      "dependsOn": [
+        "test: OBS plugin build"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "cmake: configure OBS plugin",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "-S",
+        "${workspaceFolder}",
+        "-B",
+        "${workspaceFolder}/build-plugin",
+        "-G",
+        "Ninja",
+        "-DCMAKE_PREFIX_PATH=${input:qtPrefix}",
+        "-DOBS_SOURCE_DIR=${input:obsSourceDir}",
+        "-DOBS_LIBRARY_DIR=${input:obsLibraryDir}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "cmake: build OBS plugin",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/build-plugin"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": [
+        "cmake: configure OBS plugin"
+      ],
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "test: OBS plugin build",
+      "type": "shell",
+      "command": "ctest",
+      "args": [
+        "--test-dir",
+        "${workspaceFolder}/build-plugin",
+        "--output-on-failure"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": [
+        "cmake: build OBS plugin"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "obs: install user plugin",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/build-plugin",
+        "--target",
+        "install-user-plugin"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": [
+        "cmake: build OBS plugin"
+      ],
+      "problemMatcher": "$gcc"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "qtPrefix",
+      "type": "promptString",
+      "description": "Qt 6 prefix path for CMAKE_PREFIX_PATH",
+      "default": "/opt/homebrew"
+    },
+    {
+      "id": "obsSourceDir",
+      "type": "promptString",
+      "description": "OBS Studio source checkout for headers",
+      "default": "/tmp/obs-studio-src"
+    },
+    {
+      "id": "obsLibraryDir",
+      "type": "promptString",
+      "description": "OBS runtime/import library directory",
+      "default": "/Applications/OBS.app/Contents/Frameworks"
+    }
+  ]
+}

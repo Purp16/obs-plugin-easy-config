@@ -27,7 +27,6 @@
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QStyle>
-#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <obs-module.h>
@@ -425,11 +424,6 @@ std::string toStdStringCompat(const QString &value)
 {
   const QByteArray utf8 = value.toUtf8();
   return std::string(utf8.constData(), static_cast<std::size_t>(utf8.size()));
-}
-
-QString templateHelpText()
-{
-  return trText("PathTemplateHelp");
 }
 
 struct TemplateVariableOption {
@@ -1318,18 +1312,6 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   baseLayout->addWidget(baseDirectoryEdit_, 1);
   baseLayout->addWidget(browseButton);
 
-  auto *templateHelpButton = new QPushButton(QLatin1String("?"), this);
-  templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
-  const int templateButtonWidth = std::max(44, browseButton->sizeHint().height() + 18);
-  templateHelpButton->setFixedWidth(templateButtonWidth);
-  templateHelpButton->setFocusPolicy(Qt::NoFocus);
-  templateHelpButton->setStyleSheet(QLatin1String(
-    "padding-left: 6px; padding-right: 6px; min-width: 0px;"));
-  connect(templateHelpButton, &QPushButton::clicked, this, [templateHelpButton]() {
-    QToolTip::showText(templateHelpButton->mapToGlobal(
-                         QPoint(-260, -templateHelpButton->height())),
-                       templateHelpText(), templateHelpButton);
-  });
   auto *templateEditButton = new QPushButton(trText("EditPathTemplateButton"), this);
   makeCompactButton(templateEditButton);
 
@@ -1337,7 +1319,6 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   templateLayout->setContentsMargins(0, 0, 0, 0);
   templateLayout->setSpacing(kControlSpacing);
   templateLayout->addWidget(pathTemplateEdit_, 1);
-  templateLayout->addWidget(templateHelpButton);
   templateLayout->addWidget(templateEditButton);
 
   auto *resolutionRow = new QWidget(this);
@@ -1377,12 +1358,17 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   previewControl_ = makeInlineLabelControl(trText("Preview"), previewLabel_, this);
   statusControl_ = makeInlineLabelControl(trText("Status"), statusLabel_, this);
 
-  auto *pathStatusLayout = new QHBoxLayout();
+  auto *pathStatusLayout = new QVBoxLayout();
   pathStatusLayout->setContentsMargins(0, 0, 0, 0);
-  pathStatusLayout->setSpacing(kControlSpacing * 2);
-  pathStatusLayout->addWidget(enablePathAutomationCheck_, 0);
-  pathStatusLayout->addWidget(previewControl_, 1);
-  pathStatusLayout->addWidget(statusControl_, 0);
+  pathStatusLayout->setSpacing(kControlSpacing);
+
+  auto *pathPreviewLayout = new QHBoxLayout();
+  pathPreviewLayout->setContentsMargins(0, 0, 0, 0);
+  pathPreviewLayout->setSpacing(kControlSpacing * 2);
+  pathPreviewLayout->addWidget(enablePathAutomationCheck_, 0);
+  pathPreviewLayout->addWidget(previewControl_, 1);
+  pathStatusLayout->addLayout(pathPreviewLayout);
+  pathStatusLayout->addWidget(statusControl_, 0, Qt::AlignLeft);
   pathStatusRow_ = makeLayoutWidget(pathStatusLayout, this);
 
   replaySection_ = makeWrapSection({replayControl_, manualTagControl_}, this);
