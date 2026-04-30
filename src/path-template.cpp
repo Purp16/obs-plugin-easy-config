@@ -11,7 +11,8 @@ namespace {
 bool is_known_variable(const std::string &name)
 {
   static const std::set<std::string> known = {
-    "date", "year", "month", "day",
+    "date", "datetime", "year", "month", "day",
+    "time", "hour", "minute", "second",
     "profile", "scene_collection", "scene", "tag",
   };
   return known.find(name) != known.end();
@@ -162,9 +163,14 @@ PathContext normalize_context(PathContext context)
 {
   context.base = trim(context.base);
   context.date = trim(context.date);
+  context.datetime = trim(context.datetime);
   context.year = trim(context.year);
   context.month = trim(context.month);
   context.day = trim(context.day);
+  context.time = trim(context.time);
+  context.hour = trim(context.hour);
+  context.minute = trim(context.minute);
+  context.second = trim(context.second);
   context.profile = sanitize_path_segment(context.profile);
   context.scene_collection = sanitize_path_segment(context.scene_collection);
   context.scene = sanitize_path_segment(context.scene);
@@ -176,9 +182,14 @@ std::map<std::string, std::string> variables_from_context(const PathContext &con
 {
   return {
     {"date", sanitize_path_segment(context.date)},
+    {"datetime", sanitize_path_segment(context.datetime)},
     {"year", sanitize_path_segment(context.year)},
     {"month", sanitize_path_segment(context.month)},
     {"day", sanitize_path_segment(context.day)},
+    {"time", sanitize_path_segment(context.time)},
+    {"hour", sanitize_path_segment(context.hour)},
+    {"minute", sanitize_path_segment(context.minute)},
+    {"second", sanitize_path_segment(context.second)},
     {"profile", sanitize_path_segment(context.profile)},
     {"scene_collection", sanitize_path_segment(context.scene_collection)},
     {"scene", sanitize_path_segment(context.scene)},

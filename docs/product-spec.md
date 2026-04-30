@@ -68,9 +68,14 @@ shortcuts, and replay-buffer tuning.
 ## Template Variables
 
 - `{date}`
+- `{datetime}`
 - `{year}`
 - `{month}`
 - `{day}`
+- `{time}`
+- `{hour}`
+- `{minute}`
+- `{second}`
 - `{profile}`
 - `{scene_collection}`
 - `{scene}`

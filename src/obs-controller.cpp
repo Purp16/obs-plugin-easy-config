@@ -5,10 +5,11 @@
 #include <util/bmem.h>
 #include <util/config-file.h>
 
-#include <QDate>
+#include <QDateTime>
 
 #include <cmath>
 #include <filesystem>
+#include <system_error>
 
 namespace easy_config {
 namespace {
@@ -149,11 +150,69 @@ QString getConfigPath(config_t *config, const QString &compoundKey)
                                     parts[1].toUtf8().constData()));
 }
 
+std::filesystem::path pathFromQString(const QString &path)
+{
+#ifdef _WIN32
+  return std::filesystem::path(path.toStdWString());
+#else
+  const QByteArray utf8 = path.toUtf8();
+  return std::filesystem::u8path(utf8.constData());
+#endif
+}
+
+bool ensureDirectoryExists(const QString &path, QString *error)
+{
+  const QString trimmed = path.trimmed();
+  if (trimmed.isEmpty()) {
+    if (error)
+      *error = "Recording path is empty.";
+    return false;
+  }
+
+  const std::filesystem::path directory = pathFromQString(trimmed);
+  std::error_code ec;
+  if (std::filesystem::exists(directory, ec)) {
+    if (!ec && std::filesystem::is_directory(directory, ec))
+      return !ec;
+
+    if (error)
+      *error = "Recording path exists but is not a directory: " + trimmed;
+    return false;
+  }
+
+  if (ec) {
+    if (error)
+      *error = "Unable to check recording directory: " + trimmed;
+    return false;
+  }
+
+  if (!std::filesystem::create_directories(directory, ec) && ec) {
+    if (error)
+      *error = "Unable to create recording directory: " + trimmed;
+    return false;
+  }
+
+  if (ec) {
+    if (error)
+      *error = "Unable to create recording directory: " + trimmed;
+    return false;
+  }
+
+  return true;
+}
+
 void frontendEventThunk(enum obs_frontend_event event, void *data)
 {
   auto *controller = static_cast<ObsController *>(data);
   if (!controller)
     return;
+
+  auto ensureRecordingDirectory = [controller]() {
+    QString error;
+    if (!controller->ensureCurrentRecordingDirectory(nullptr, &error) && !error.isEmpty())
+      blog(LOG_WARNING, "[obs-plugin-easy-config] %s",
+           error.toUtf8().constData());
+  };
 
   switch (event) {
   case OBS_FRONTEND_EVENT_EXIT:
@@ -171,6 +230,7 @@ void frontendEventThunk(enum obs_frontend_event event, void *data)
     break;
   case OBS_FRONTEND_EVENT_RECORDING_STARTING:
     emit controller->recordingStarting();
+    ensureRecordingDirectory();
     break;
   case OBS_FRONTEND_EVENT_RECORDING_STARTED:
   case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
@@ -178,6 +238,7 @@ void frontendEventThunk(enum obs_frontend_event event, void *data)
     break;
   case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTING:
     emit controller->replayBufferStarting();
+    ensureRecordingDirectory();
     break;
   case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTED:
     emit controller->obsStateChanged();
@@ -186,6 +247,7 @@ void frontendEventThunk(enum obs_frontend_event event, void *data)
     emit controller->obsStateChanged();
     break;
   case OBS_FRONTEND_EVENT_REPLAY_BUFFER_SAVED:
+    ensureRecordingDirectory();
     break;
   case OBS_FRONTEND_EVENT_STREAMING_STARTED:
   case OBS_FRONTEND_EVENT_STREAMING_STOPPED:
@@ -517,13 +579,18 @@ bool ObsController::saveConfig(const PluginConfig &config, QString *error) const
 
 PathContext ObsController::makePathContext(const PluginConfig &config) const
 {
-  const QDate today = QDate::currentDate();
+  const QDateTime now = QDateTime::currentDateTime();
   PathContext context;
   context.base = config.baseDirectory;
-  context.date = toStdString(today.toString("yyyy-MM-dd"));
-  context.year = toStdString(today.toString("yyyy"));
-  context.month = toStdString(today.toString("MM"));
-  context.day = toStdString(today.toString("dd"));
+  context.date = toStdString(now.toString("yyyy-MM-dd"));
+  context.datetime = toStdString(now.toString("yyyy-MM-dd_HH-mm-ss"));
+  context.year = toStdString(now.toString("yyyy"));
+  context.month = toStdString(now.toString("MM"));
+  context.day = toStdString(now.toString("dd"));
+  context.time = toStdString(now.toString("HH-mm-ss"));
+  context.hour = toStdString(now.toString("HH"));
+  context.minute = toStdString(now.toString("mm"));
+  context.second = toStdString(now.toString("ss"));
   context.profile = toStdString(currentProfileName());
   context.scene_collection = toStdString(currentSceneCollectionName());
   context.scene = toStdString(currentSceneName());
@@ -534,6 +601,25 @@ PathContext ObsController::makePathContext(const PluginConfig &config) const
 PathResolveResult ObsController::previewRecordingPath(const PluginConfig &config) const
 {
   return resolve_path_template(config.pathTemplate, makePathContext(config));
+}
+
+bool ObsController::ensureCurrentRecordingDirectory(QString *resolvedPath,
+                                                    QString *error) const
+{
+  config_t *profileConfig = obs_frontend_get_profile_config();
+  if (!profileConfig) {
+    if (error)
+      *error = "Unable to access OBS profile config.";
+    return false;
+  }
+
+  const QString path = getConfigPath(profileConfig, recordingConfigKey(profileConfig));
+  if (!ensureDirectoryExists(path, error))
+    return false;
+
+  if (resolvedPath)
+    *resolvedPath = path;
+  return true;
 }
 
 bool ObsController::applyRecordingPath(const PluginConfig &config, QString *resolvedPath,
@@ -547,24 +633,8 @@ bool ObsController::applyRecordingPath(const PluginConfig &config, QString *reso
   }
 
   const QString path = QString::fromUtf8(result.path.c_str(), -1);
-  std::error_code ec;
-  const std::filesystem::path targetDirectory(result.path);
-  if (std::filesystem::exists(targetDirectory, ec)) {
-    if (ec || !std::filesystem::is_directory(targetDirectory, ec)) {
-      if (error)
-        *error = "Recording path exists but is not a directory: " + path;
-      return false;
-    }
-  } else if (!std::filesystem::create_directories(targetDirectory, ec)) {
-    if (error)
-      *error = "Unable to create directory: " + path;
+  if (!ensureDirectoryExists(path, error))
     return false;
-  }
-  if (ec) {
-    if (error)
-      *error = "Unable to create directory: " + path;
-    return false;
-  }
 
   config_t *profileConfig = obs_frontend_get_profile_config();
   if (!profileConfig) {

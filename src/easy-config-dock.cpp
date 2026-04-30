@@ -1,5 +1,7 @@
 #include "easy-config-dock.hpp"
 
+#include <QAbstractItemModel>
+#include <QAbstractItemView>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -8,6 +10,8 @@
 #include <QFileDialog>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QLabel>
 #include <QLineEdit>
 #include <QLayout>
@@ -31,6 +35,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <map>
 
 namespace easy_config {
 namespace {
@@ -425,6 +430,291 @@ std::string toStdStringCompat(const QString &value)
 QString templateHelpText()
 {
   return trText("PathTemplateHelp");
+}
+
+struct TemplateVariableOption {
+  const char *name;
+  const char *labelKey;
+};
+
+std::vector<TemplateVariableOption> templateVariableOptions()
+{
+  return {
+    {"date", "TemplateVarDate"},
+    {"datetime", "TemplateVarDatetime"},
+    {"year", "TemplateVarYear"},
+    {"month", "TemplateVarMonth"},
+    {"day", "TemplateVarDay"},
+    {"time", "TemplateVarTime"},
+    {"hour", "TemplateVarHour"},
+    {"minute", "TemplateVarMinute"},
+    {"second", "TemplateVarSecond"},
+    {"profile", "TemplateVarProfile"},
+    {"scene_collection", "TemplateVarSceneCollection"},
+    {"scene", "TemplateVarScene"},
+    {"tag", "TemplateVarTag"},
+  };
+}
+
+QString templateToken(const QString &name)
+{
+  return QLatin1String("{") + name + QLatin1String("}");
+}
+
+QString templateVariableLabel(const TemplateVariableOption &option)
+{
+  return trText(option.labelKey) + QLatin1String("  ") +
+         templateToken(QLatin1String(option.name));
+}
+
+QString templateFromList(QListWidget *list)
+{
+  QStringList tokens;
+  for (int i = 0; i < list->count(); ++i) {
+    const QString name = list->item(i)->data(Qt::UserRole).toString();
+    if (!name.isEmpty())
+      tokens.push_back(templateToken(name));
+  }
+  return tokens.join(QLatin1Char('/'));
+}
+
+std::vector<QString> parseTemplateVariableOrder(const QString &pathTemplate)
+{
+  std::map<QString, bool> known;
+  for (const auto &option : templateVariableOptions())
+    known[QLatin1String(option.name)] = true;
+
+  std::vector<QString> result;
+  int offset = 0;
+  while (offset < pathTemplate.size()) {
+    const int open = pathTemplate.indexOf(QLatin1Char('{'), offset);
+    if (open < 0)
+      break;
+    const int close = pathTemplate.indexOf(QLatin1Char('}'), open + 1);
+    if (close < 0)
+      break;
+
+    const QString name = pathTemplate.mid(open + 1, close - open - 1);
+    if (known.find(name) != known.end())
+      result.push_back(name);
+    offset = close + 1;
+  }
+
+  if (result.empty()) {
+    result.push_back(QLatin1String("date"));
+    result.push_back(QLatin1String("tag"));
+  }
+  return result;
+}
+
+PathContext makeTemplateExampleContext(const QString &baseDirectory,
+                                       const QString &profile,
+                                       const QString &sceneCollection,
+                                       const QString &scene,
+                                       const QString &tag)
+{
+  PathContext context;
+  context.base = toStdStringCompat(baseDirectory);
+  context.date = "2026-04-30";
+  context.datetime = "2026-04-30_21-35-18";
+  context.year = "2026";
+  context.month = "04";
+  context.day = "30";
+  context.time = "21-35-18";
+  context.hour = "21";
+  context.minute = "35";
+  context.second = "18";
+  context.profile = toStdStringCompat(profile.isEmpty() ? trText("Profile") : profile);
+  context.scene_collection = toStdStringCompat(
+    sceneCollection.isEmpty() ? trText("SceneCollection") : sceneCollection);
+  context.scene = toStdStringCompat(scene.isEmpty() ? trText("Scene") : scene);
+  context.tag = toStdStringCompat(tag.isEmpty() ? QLatin1String("clips") : tag);
+  return context;
+}
+
+bool editPathTemplateDialog(QWidget *parent, const QString &baseDirectory,
+                            const QString &profile, const QString &sceneCollection,
+                            const QString &scene, const QString &tag,
+                            QString *pathTemplate)
+{
+  QDialog dialog(parent);
+  dialog.setWindowTitle(trText("EditPathTemplate"));
+  dialog.resize(620, 460);
+
+  auto *root = new QVBoxLayout(&dialog);
+  auto *columns = new QGridLayout();
+  columns->setHorizontalSpacing(kControlSpacing * 2);
+  columns->setVerticalSpacing(kControlSpacing);
+  root->addLayout(columns, 1);
+
+  auto *availableLabel = new QLabel(trText("PathTemplateAvailableVariables"), &dialog);
+  auto *selectedLabel = new QLabel(trText("PathTemplateSelectedVariables"), &dialog);
+  auto *availableList = new QListWidget(&dialog);
+  auto *selectedList = new QListWidget(&dialog);
+  auto *actions = new QVBoxLayout();
+
+  availableList->setSelectionMode(QAbstractItemView::SingleSelection);
+  availableList->setDragEnabled(true);
+  availableList->setDragDropMode(QAbstractItemView::DragOnly);
+  selectedList->setSelectionMode(QAbstractItemView::SingleSelection);
+  selectedList->setDragDropMode(QAbstractItemView::DragDrop);
+  selectedList->setDefaultDropAction(Qt::MoveAction);
+  selectedList->setDragEnabled(true);
+  selectedList->setAcceptDrops(true);
+  selectedList->setDropIndicatorShown(true);
+
+  for (const auto &option : templateVariableOptions()) {
+    auto *item = new QListWidgetItem(templateVariableLabel(option), availableList);
+    item->setData(Qt::UserRole, QLatin1String(option.name));
+  }
+
+  auto addSelectedItem = [&](const QString &name) {
+    const auto options = templateVariableOptions();
+    auto it = std::find_if(options.begin(), options.end(),
+                           [&](const TemplateVariableOption &option) {
+                             return name == QLatin1String(option.name);
+                           });
+    if (it == options.end())
+      return;
+    auto *item = new QListWidgetItem(templateVariableLabel(*it), selectedList);
+    item->setData(Qt::UserRole, name);
+    item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+  };
+
+  for (const QString &name : parseTemplateVariableOrder(*pathTemplate))
+    addSelectedItem(name);
+
+  auto *addButton = new QPushButton(trText("AddTemplateVariable"), &dialog);
+  auto *removeButton = new QPushButton(trText("RemovePreset"), &dialog);
+  auto *upButton = new QPushButton(trText("MovePresetUp"), &dialog);
+  auto *downButton = new QPushButton(trText("MovePresetDown"), &dialog);
+  actions->addStretch(1);
+  actions->addWidget(addButton);
+  actions->addWidget(removeButton);
+  actions->addSpacing(kControlSpacing);
+  actions->addWidget(upButton);
+  actions->addWidget(downButton);
+  actions->addStretch(1);
+
+  columns->addWidget(availableLabel, 0, 0);
+  columns->addWidget(selectedLabel, 0, 2);
+  columns->addWidget(availableList, 1, 0);
+  columns->addLayout(actions, 1, 1);
+  columns->addWidget(selectedList, 1, 2);
+  columns->setColumnStretch(0, 1);
+  columns->setColumnStretch(2, 1);
+
+  auto *templatePreview = new QLineEdit(&dialog);
+  templatePreview->setReadOnly(true);
+  root->addWidget(templatePreview);
+
+  auto *examplesLabel = new QLabel(trText("PathTemplateExamples"), &dialog);
+  auto *examples = new QListWidget(&dialog);
+  examples->setSelectionMode(QAbstractItemView::NoSelection);
+  examples->setMaximumHeight(96);
+  root->addWidget(examplesLabel);
+  root->addWidget(examples);
+
+  const QString exampleBase = baseDirectory.trimmed().isEmpty()
+    ? QLatin1String("D:/Recordings")
+    : baseDirectory.trimmed();
+  const QString exampleTag = tag.trimmed().isEmpty() ? QLatin1String("clips") : tag.trimmed();
+
+  auto updateExamples = [&]() {
+    const QString currentTemplate = templateFromList(selectedList);
+    templatePreview->setText(currentTemplate);
+    examples->clear();
+
+    const std::vector<PathContext> contexts = {
+      makeTemplateExampleContext(exampleBase, profile, sceneCollection, scene, exampleTag),
+      makeTemplateExampleContext(exampleBase, profile, sceneCollection, scene,
+                                 QLatin1String("ranked")),
+      makeTemplateExampleContext(exampleBase, profile, sceneCollection, scene,
+                                 QLatin1String("test")),
+    };
+
+    for (const PathContext &context : contexts) {
+      const auto result = resolve_path_template(toStdStringCompat(currentTemplate), context);
+      examples->addItem(QString::fromUtf8(result.path.c_str(), -1));
+    }
+  };
+
+  QObject::connect(addButton, &QPushButton::clicked, &dialog, [&]() {
+    auto *item = availableList->currentItem();
+    if (!item)
+      return;
+    addSelectedItem(item->data(Qt::UserRole).toString());
+    selectedList->setCurrentRow(selectedList->count() - 1);
+    updateExamples();
+  });
+  QObject::connect(availableList, &QListWidget::itemDoubleClicked, &dialog,
+                   [&](QListWidgetItem *item) {
+                     if (!item)
+                       return;
+                     addSelectedItem(item->data(Qt::UserRole).toString());
+                     selectedList->setCurrentRow(selectedList->count() - 1);
+                     updateExamples();
+                   });
+  QObject::connect(removeButton, &QPushButton::clicked, &dialog, [&]() {
+    delete selectedList->takeItem(selectedList->currentRow());
+    updateExamples();
+  });
+  QObject::connect(upButton, &QPushButton::clicked, &dialog, [&]() {
+    const int row = selectedList->currentRow();
+    if (row <= 0)
+      return;
+    auto *item = selectedList->takeItem(row);
+    selectedList->insertItem(row - 1, item);
+    selectedList->setCurrentRow(row - 1);
+    updateExamples();
+  });
+  QObject::connect(downButton, &QPushButton::clicked, &dialog, [&]() {
+    const int row = selectedList->currentRow();
+    if (row < 0 || row + 1 >= selectedList->count())
+      return;
+    auto *item = selectedList->takeItem(row);
+    selectedList->insertItem(row + 1, item);
+    selectedList->setCurrentRow(row + 1);
+    updateExamples();
+  });
+  QObject::connect(selectedList->model(), &QAbstractItemModel::rowsMoved,
+                   &dialog, [&](const QModelIndex &, int, int, const QModelIndex &, int) {
+                     updateExamples();
+                   });
+  QObject::connect(selectedList->model(), &QAbstractItemModel::rowsInserted,
+                   &dialog, [&](const QModelIndex &, int, int) {
+                     updateExamples();
+                   });
+  QObject::connect(selectedList->model(), &QAbstractItemModel::rowsRemoved,
+                   &dialog, [&](const QModelIndex &, int, int) {
+                     updateExamples();
+                   });
+
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                       Qt::Horizontal, &dialog);
+  root->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+    if (selectedList->count() <= 0)
+      return;
+    dialog.accept();
+  });
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  if (availableList->count() > 0)
+    availableList->setCurrentRow(0);
+  if (selectedList->count() > 0)
+    selectedList->setCurrentRow(0);
+  updateExamples();
+
+  if (dialog.exec() != QDialog::Accepted)
+    return false;
+
+  const QString generatedTemplate = templateFromList(selectedList);
+  if (generatedTemplate.isEmpty())
+    return false;
+
+  *pathTemplate = generatedTemplate;
+  return true;
 }
 
 QString resolutionText(const ResolutionPreset &preset)
@@ -1010,6 +1300,8 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   replaySecondsSpin_->setSuffix(trText("SecondsSuffix"));
   replayMegabytesSpin_->setRange(1, 1048576);
   replayMegabytesSpin_->setSuffix(trText("MegabytesSuffix"));
+  replaySecondsSpin_->setFixedWidth(86);
+  replayMegabytesSpin_->setFixedWidth(104);
 
   pathTemplateEdit_->setPlaceholderText(QLatin1String("{date}/{tag}"));
   manualTagEdit_->setPlaceholderText(trText("ManualTagPlaceholder"));
@@ -1028,19 +1320,25 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
 
   auto *templateHelpButton = new QPushButton(QLatin1String("?"), this);
   templateHelpButton->setAccessibleName(trText("PathTemplateHelpTitle"));
-  templateHelpButton->setFixedWidth(browseButton->sizeHint().height());
+  const int templateButtonWidth = std::max(44, browseButton->sizeHint().height() + 18);
+  templateHelpButton->setFixedWidth(templateButtonWidth);
   templateHelpButton->setFocusPolicy(Qt::NoFocus);
+  templateHelpButton->setStyleSheet(QLatin1String(
+    "padding-left: 6px; padding-right: 6px; min-width: 0px;"));
   connect(templateHelpButton, &QPushButton::clicked, this, [templateHelpButton]() {
     QToolTip::showText(templateHelpButton->mapToGlobal(
                          QPoint(-260, -templateHelpButton->height())),
                        templateHelpText(), templateHelpButton);
   });
+  auto *templateEditButton = new QPushButton(trText("EditPathTemplateButton"), this);
+  makeCompactButton(templateEditButton);
 
   auto *templateLayout = new QHBoxLayout();
   templateLayout->setContentsMargins(0, 0, 0, 0);
   templateLayout->setSpacing(kControlSpacing);
   templateLayout->addWidget(pathTemplateEdit_, 1);
   templateLayout->addWidget(templateHelpButton);
+  templateLayout->addWidget(templateEditButton);
 
   auto *resolutionRow = new QWidget(this);
   resolutionRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -1079,6 +1377,14 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   previewControl_ = makeInlineLabelControl(trText("Preview"), previewLabel_, this);
   statusControl_ = makeInlineLabelControl(trText("Status"), statusLabel_, this);
 
+  auto *pathStatusLayout = new QHBoxLayout();
+  pathStatusLayout->setContentsMargins(0, 0, 0, 0);
+  pathStatusLayout->setSpacing(kControlSpacing * 2);
+  pathStatusLayout->addWidget(enablePathAutomationCheck_, 0);
+  pathStatusLayout->addWidget(previewControl_, 1);
+  pathStatusLayout->addWidget(statusControl_, 0);
+  pathStatusRow_ = makeLayoutWidget(pathStatusLayout, this);
+
   replaySection_ = makeWrapSection({replayControl_, manualTagControl_}, this);
   pathSection_ = makeWrapSection({baseDirectoryControl_, pathTemplateControl_}, this);
   wrapSections_ = {profileSceneSection_, videoPresetSection_, replaySection_, pathSection_};
@@ -1092,9 +1398,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   contentLayout->addWidget(videoPresetSection_);
   contentLayout->addWidget(replaySection_);
   contentLayout->addWidget(pathSection_);
-  contentLayout->addWidget(enablePathAutomationCheck_);
-  contentLayout->addWidget(previewControl_);
-  contentLayout->addWidget(statusControl_);
+  contentLayout->addWidget(pathStatusRow_);
 
   scrollArea_ = new QScrollArea(this);
   scrollArea_->setMinimumSize(0, 0);
@@ -1128,6 +1432,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
     updatePreview();
   });
   connect(browseButton, &QPushButton::clicked, this, &EasyConfigDock::browseBaseDirectory);
+  connect(templateEditButton, &QPushButton::clicked, this, &EasyConfigDock::editPathTemplate);
   connect(baseDirectoryEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(pathTemplateEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(manualTagEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
@@ -1172,8 +1477,20 @@ void EasyConfigDock::updatePreview()
   const PluginConfig config = configFromUi();
   const auto result = controller_->previewRecordingPath(config);
   if (result.ok) {
-    setPreviewText(QString::fromUtf8(result.path.c_str(), -1));
+    const QString previewPath = QString::fromUtf8(result.path.c_str(), -1);
+    setPreviewText(previewPath);
     setStatusText(trText("Ready"));
+    if (config.autoApplyBeforeRecording) {
+      QString appliedPath;
+      QString error;
+      if (controller_->applyRecordingPath(config, &appliedPath, &error)) {
+        if (!appliedPath.isEmpty())
+          setPreviewText(appliedPath);
+        setStatusText(trText("Applied"));
+      } else {
+        setStatusText(error, true);
+      }
+    }
   } else {
     if (!result.errors.empty())
       setStatusText(localizedError(result.errors.front()), true);
@@ -1286,6 +1603,21 @@ void EasyConfigDock::applyReplayBufferSettings()
   setStatusText(trText("ReplayBufferApplied"));
 }
 
+void EasyConfigDock::editPathTemplate()
+{
+  QString pathTemplate = pathTemplateEdit_->text();
+  const bool accepted = editPathTemplateDialog(
+    this, baseDirectoryEdit_->text(), profileCombo_->currentText(),
+    sceneCollectionCombo_->currentText(), controller_->currentSceneName(),
+    manualTagEdit_->text(), &pathTemplate);
+
+  if (!accepted)
+    return;
+
+  pathTemplateEdit_->setText(pathTemplate);
+  updatePreview();
+}
+
 void EasyConfigDock::updateSectionVisibility()
 {
   if (profileControl_)
@@ -1312,6 +1644,8 @@ void EasyConfigDock::updateSectionVisibility()
     previewControl_->setVisible(config_.showPathAutomation && config_.showPreviewStatus);
   if (statusControl_)
     statusControl_->setVisible(config_.showPreviewStatus);
+  if (pathStatusRow_)
+    pathStatusRow_->setVisible(config_.showPathAutomation || config_.showPreviewStatus);
   if (pathSection_)
     pathSection_->setVisible(config_.showPathAutomation);
   if (enablePathAutomationCheck_)
@@ -1558,7 +1892,10 @@ void EasyConfigDock::setStatusText(const QString &message, bool error)
 {
   if (!statusLabel_)
     return;
-  statusLabel_->setText(message);
+  QString display = message.trimmed();
+  while (display.endsWith(QLatin1Char('.')) || display.endsWith(QChar(0x3002)))
+    display.chop(1);
+  statusLabel_->setText(display);
   statusLabel_->setStyleSheet(error ? "color: #c62828;" : "color: palette(text);");
 }
 

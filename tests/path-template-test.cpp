@@ -52,6 +52,27 @@ TEST_CASE("year month and day match the date parts")
   CHECK(result.path == "/recordings/2026/04/29/match");
 }
 
+TEST_CASE("datetime and time variables add filename-safe precision")
+{
+  PathContext context;
+  context.base = "/recordings";
+  context.date = "2026-04-29";
+  context.datetime = "2026-04-29_21-34-56";
+  context.year = "2026";
+  context.month = "04";
+  context.day = "29";
+  context.time = "21-34-56";
+  context.hour = "21";
+  context.minute = "34";
+  context.second = "56";
+  context.tag = "match";
+
+  const auto result = resolve_path_template(
+    "{datetime}/{hour}/{minute}/{second}/{time}/{tag}", context);
+  REQUIRE(result.ok);
+  CHECK(result.path == "/recordings/2026-04-29_21-34-56/21/34/56/21-34-56/match");
+}
+
 TEST_CASE("empty tag falls back to untagged")
 {
   PathContext context;

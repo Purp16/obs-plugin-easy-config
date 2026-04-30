@@ -220,6 +220,8 @@ hdiutil detach /Volumes/OBS
 
 - Dock title: `Easy Config`
 - Default rule: `baseDirectory` plus `{date}/{tag}`
+- Path templates support date/time variables including `{date}`, `{datetime}`,
+  `{time}`, `{hour}`, `{minute}`, and `{second}`.
 - Empty tag fallback: `untagged`
 - First version intentionally does not implement `{app}` foreground application detection.
 - Resolution shortcuts change both OBS base canvas resolution and output

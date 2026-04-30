@@ -59,6 +59,7 @@ public:
 
   PathContext makePathContext(const PluginConfig &config) const;
   PathResolveResult previewRecordingPath(const PluginConfig &config) const;
+  bool ensureCurrentRecordingDirectory(QString *resolvedPath, QString *error) const;
   bool applyRecordingPath(const PluginConfig &config, QString *resolvedPath,
                           QString *error) const;
 

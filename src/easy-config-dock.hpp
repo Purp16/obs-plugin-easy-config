@@ -35,6 +35,7 @@ private slots:
   void editResolutionPresets();
   void editFpsPresets();
   void applyReplayBufferSettings();
+  void editPathTemplate();
   void updateSectionVisibility();
   void openAboutDialog();
 
@@ -81,6 +82,7 @@ private:
   QWidget *manualTagControl_ = nullptr;
   QWidget *previewControl_ = nullptr;
   QWidget *statusControl_ = nullptr;
+  QWidget *pathStatusRow_ = nullptr;
   QWidget *profileSceneSection_ = nullptr;
   QWidget *videoPresetSection_ = nullptr;
   QWidget *replaySection_ = nullptr;

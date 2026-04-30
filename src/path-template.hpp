@@ -9,9 +9,14 @@ namespace easy_config {
 struct PathContext {
   std::string base;
   std::string date;
+  std::string datetime;
   std::string year;
   std::string month;
   std::string day;
+  std::string time;
+  std::string hour;
+  std::string minute;
+  std::string second;
   std::string profile;
   std::string scene_collection;
   std::string scene;

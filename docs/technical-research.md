@@ -200,9 +200,14 @@ should apply the path before recording starts, ideally on
 Initial variables:
 
 - `{date}` as `YYYY-MM-DD`
+- `{datetime}` as `YYYY-MM-DD_HH-mm-ss`
 - `{year}`
 - `{month}`
 - `{day}`
+- `{time}` as `HH-mm-ss`
+- `{hour}`
+- `{minute}`
+- `{second}`
 - `{profile}`
 - `{scene_collection}`
 - `{scene}`

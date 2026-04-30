@@ -62,7 +62,10 @@ If the scaffold changes these commands, update this section in the same change.
 The rule engine should support these initial variables:
 
 - `{date}` as `YYYY-MM-DD`
+- `{datetime}` as `YYYY-MM-DD_HH-mm-ss`
 - `{year}`, `{month}`, `{day}`
+- `{time}` as `HH-mm-ss`
+- `{hour}`, `{minute}`, `{second}`
 - `{profile}`
 - `{scene_collection}`
 - `{scene}`
