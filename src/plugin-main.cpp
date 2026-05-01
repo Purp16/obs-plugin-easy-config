@@ -21,6 +21,19 @@ easy_config::ObsController *controller = nullptr;
 QPointer<easy_config::EasyConfigDock> dock;
 bool frontendExiting = false;
 
+void relaxDockSizeConstraints(QDockWidget *dockWidget)
+{
+  if (!dockWidget)
+    return;
+
+  dockWidget->setMinimumSize(0, 0);
+  dockWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+  if (QWidget *content = dockWidget->widget()) {
+    content->setMinimumSize(0, 0);
+    content->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+  }
+}
+
 QString moduleText(const char *key)
 {
   return QString::fromUtf8(obs_module_text(key), -1);
@@ -86,6 +99,20 @@ void scheduleRemoveDockCloseButton(QMainWindow *mainWindow)
   QTimer::singleShot(1000, mainWindow, [mainWindow]() { removeDockCloseButton(mainWindow); });
 }
 
+void scheduleRelaxDockSizeConstraints(QMainWindow *mainWindow)
+{
+  if (!mainWindow)
+    return;
+
+  auto relax = [mainWindow]() {
+    relaxDockSizeConstraints(findDockWidget(mainWindow));
+  };
+  relax();
+  QTimer::singleShot(0, mainWindow, relax);
+  QTimer::singleShot(250, mainWindow, relax);
+  QTimer::singleShot(1000, mainWindow, relax);
+}
+
 } // namespace
 
 const char *obs_module_description()
@@ -113,6 +140,7 @@ bool obs_module_load()
     controller = nullptr;
     return false;
   }
+  scheduleRelaxDockSizeConstraints(mainWindow);
   scheduleRemoveDockCloseButton(mainWindow);
   blog(LOG_INFO, "[obs-plugin-easy-config] loaded");
   return true;

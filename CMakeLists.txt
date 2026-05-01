@@ -82,8 +82,11 @@ if(EASY_CONFIG_BUILD_PLUGIN)
         ${OBS_FRONTEND_INCLUDE_DIR}
         ${OBS_MODULE_INCLUDE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake
-        ${SIMDE_INCLUDE_DIR}
     )
+
+    if(SIMDE_INCLUDE_DIR)
+      target_include_directories(obs-plugin-easy-config PRIVATE ${SIMDE_INCLUDE_DIR})
+    endif()
 
     if(APPLE)
       get_target_property(QT_CORE_LOCATION Qt6::Core LOCATION)
