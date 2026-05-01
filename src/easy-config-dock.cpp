@@ -339,33 +339,7 @@ public:
 
   QSize minimumSizeHint() const override
   {
-    if (!layout())
-      return QWidget::minimumSizeHint();
-    return {0, layout()->heightForWidth(std::max(this->width(), 1))};
-  }
-
-protected:
-  void resizeEvent(QResizeEvent *event) override
-  {
-    QWidget::resizeEvent(event);
-    updateMinimumHeightForWidth(event->size().width());
-  }
-
-  void showEvent(QShowEvent *event) override
-  {
-    QWidget::showEvent(event);
-    updateMinimumHeightForWidth(width());
-  }
-
-private:
-  void updateMinimumHeightForWidth(int width)
-  {
-    if (!layout())
-      return;
-
-    const int height = layout()->heightForWidth(std::max(width, 1));
-    if (minimumHeight() != height)
-      setMinimumHeight(height);
+    return {0, 0};
   }
 };
 
@@ -754,6 +728,24 @@ QWidget *makeInlineLabelControl(const QString &label, QWidget *control, QWidget 
 
   auto *title = new QLabel(label, container);
   title->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+  layout->addWidget(title);
+  layout->addWidget(control, 1);
+  return container;
+}
+
+QWidget *makeStackedInlineLabelControl(const QString &label, QWidget *control, QWidget *parent)
+{
+  auto *container = new QWidget(parent);
+  container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+  auto *layout = new QHBoxLayout(container);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(kControlSpacing);
+
+  auto *title = new QLabel(label, container);
+  title->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+  control->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
   layout->addWidget(title);
   layout->addWidget(control, 1);
   return container;
@@ -1355,8 +1347,8 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   pathTemplateControl_ =
     makeLabeledControl(trText("PathTemplate"), makeLayoutWidget(templateLayout, this), this);
   manualTagControl_ = makeLabeledControl(trText("ManualTag"), manualTagEdit_, this);
-  previewControl_ = makeInlineLabelControl(trText("Preview"), previewLabel_, this);
-  statusControl_ = makeInlineLabelControl(trText("Status"), statusLabel_, this);
+  previewControl_ = makeStackedInlineLabelControl(trText("Preview"), previewLabel_, this);
+  statusControl_ = makeStackedInlineLabelControl(trText("Status"), statusLabel_, this);
 
   auto *pathStatusLayout = new QVBoxLayout();
   pathStatusLayout->setContentsMargins(0, 0, 0, 0);
@@ -1368,7 +1360,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   pathPreviewLayout->addWidget(enablePathAutomationCheck_, 0);
   pathPreviewLayout->addWidget(previewControl_, 1);
   pathStatusLayout->addLayout(pathPreviewLayout);
-  pathStatusLayout->addWidget(statusControl_, 0, Qt::AlignLeft);
+  pathStatusLayout->addWidget(statusControl_, 0);
   pathStatusRow_ = makeLayoutWidget(pathStatusLayout, this);
 
   replaySection_ = makeWrapSection({replayControl_, manualTagControl_}, this);

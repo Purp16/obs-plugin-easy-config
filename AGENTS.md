@@ -47,6 +47,30 @@ command.
 
 If the scaffold changes these commands, update this section in the same change.
 
+## Windows OBS Plugin Install Paths
+
+When installing a local Windows build for manual OBS testing, first identify
+the OBS install actually being launched. Steam installs may load program-level
+plugins from:
+
+```text
+D:\Programs\Steam\steamapps\common\OBS Studio\
+  obs-plugins\64bit\obs-plugin-easy-config.dll
+  data\obs-plugins\obs-plugin-easy-config\locale\*.ini
+```
+
+Also keep the user plugin layout in sync when present:
+
+```text
+%APPDATA%\obs-studio\plugins\obs-plugin-easy-config\
+  bin\64bit\obs-plugin-easy-config.dll
+  data\locale\*.ini
+```
+
+If UI changes do not appear, check for duplicate
+`obs-plugin-easy-config.dll` files and compare timestamps or hashes. OBS loads
+plugin DLLs at startup, so close and reopen OBS after replacing them.
+
 ## Coding Guidelines
 
 - Keep OBS-facing code separate from pure business logic.
