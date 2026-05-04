@@ -27,6 +27,7 @@
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QStyle>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <obs-module.h>
@@ -42,6 +43,7 @@ namespace {
 constexpr int kControlSpacing = 5;
 constexpr int kFormMargin = 6;
 constexpr int kTwoColumnBreakpoint = 220;
+constexpr int kRecordingPathApplyDebounceMs = 2500;
 
 class PersistentCheckMenu : public QMenu {
 public:
@@ -1273,6 +1275,7 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   applyReplayButton_ = new QPushButton(trText("ApplyReplayBuffer"), this);
   previewLabel_ = new QLabel(this);
   statusLabel_ = new QLabel(this);
+  recordingPathApplyTimer_ = new QTimer(this);
   settingsButton_ = new QPushButton(trText("SettingsMenuButton"), this);
   settingsMenu_ = new PersistentCheckMenu(settingsButton_);
   settingsButton_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -1296,6 +1299,8 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   previewLabel_->setWordWrap(true);
   statusLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   statusLabel_->setWordWrap(true);
+  recordingPathApplyTimer_->setSingleShot(true);
+  recordingPathApplyTimer_->setInterval(kRecordingPathApplyDebounceMs);
 
   auto *browseButton = new QPushButton(trText("Browse"), this);
   auto *baseLayout = new QHBoxLayout();
@@ -1414,10 +1419,18 @@ EasyConfigDock::EasyConfigDock(ObsController *controller, QWidget *parent)
   connect(baseDirectoryEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(pathTemplateEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
   connect(manualTagEdit_, &QLineEdit::textChanged, this, &EasyConfigDock::updatePreview);
+  connect(baseDirectoryEdit_, &QLineEdit::editingFinished, this,
+          &EasyConfigDock::applyRecordingPathNow);
+  connect(pathTemplateEdit_, &QLineEdit::editingFinished, this,
+          &EasyConfigDock::applyRecordingPathNow);
+  connect(manualTagEdit_, &QLineEdit::editingFinished, this,
+          &EasyConfigDock::applyRecordingPathNow);
   connect(enablePathAutomationCheck_, &QCheckBox::toggled, this, [this]() {
     updatePreview();
     saveCurrentConfig();
   });
+  connect(recordingPathApplyTimer_, &QTimer::timeout, this,
+          &EasyConfigDock::applyRecordingPathNow);
   connect(applyReplayButton_, &QPushButton::clicked, this,
           &EasyConfigDock::applyReplayBufferSettings);
   connect(settingsButton_, &QPushButton::clicked, this, [this]() {
@@ -1454,21 +1467,11 @@ void EasyConfigDock::updatePreview()
 {
   const PluginConfig config = configFromUi();
   const auto result = controller_->previewRecordingPath(config);
+  const bool pathReady = result.ok;
   if (result.ok) {
     const QString previewPath = QString::fromUtf8(result.path.c_str(), -1);
     setPreviewText(previewPath);
     setStatusText(trText("Ready"));
-    if (config.autoApplyBeforeRecording) {
-      QString appliedPath;
-      QString error;
-      if (controller_->applyRecordingPath(config, &appliedPath, &error)) {
-        if (!appliedPath.isEmpty())
-          setPreviewText(appliedPath);
-        setStatusText(trText("Applied"));
-      } else {
-        setStatusText(error, true);
-      }
-    }
   } else {
     if (!result.errors.empty())
       setStatusText(localizedError(result.errors.front()), true);
@@ -1476,12 +1479,27 @@ void EasyConfigDock::updatePreview()
       setStatusText(QString::fromUtf8(result.path.c_str(), -1), true);
   }
   saveCurrentConfig();
+  scheduleRecordingPathApply(config, pathReady);
+}
+
+void EasyConfigDock::applyRecordingPathNow()
+{
+  applyRecordingPath(false);
 }
 
 void EasyConfigDock::applyBeforeRecording()
 {
+  applyRecordingPath(true);
+}
+
+void EasyConfigDock::applyRecordingPath(bool allowWhileOutputsActive)
+{
   const PluginConfig config = configFromUi();
+  if (recordingPathApplyTimer_)
+    recordingPathApplyTimer_->stop();
   if (!config.autoApplyBeforeRecording)
+    return;
+  if (!allowWhileOutputsActive && controller_->outputsActive())
     return;
 
   QString path;
@@ -1837,6 +1855,16 @@ int EasyConfigDock::fpsPresetIndex(QObject *sender) const
       return static_cast<int>(i);
   }
   return -1;
+}
+
+void EasyConfigDock::scheduleRecordingPathApply(const PluginConfig &config, bool pathReady)
+{
+  if (!recordingPathApplyTimer_)
+    return;
+
+  recordingPathApplyTimer_->stop();
+  if (config.autoApplyBeforeRecording && pathReady)
+    recordingPathApplyTimer_->start();
 }
 
 void EasyConfigDock::refreshReplayBufferSettings()

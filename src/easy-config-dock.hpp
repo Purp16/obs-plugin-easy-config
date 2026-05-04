@@ -16,6 +16,7 @@ class QResizeEvent;
 class QScrollArea;
 class QSpinBox;
 class QAction;
+class QTimer;
 
 namespace easy_config {
 
@@ -29,6 +30,7 @@ private slots:
   void refreshObsState();
   void browseBaseDirectory();
   void updatePreview();
+  void applyRecordingPathNow();
   void applyBeforeRecording();
   void applyResolutionPreset();
   void applyFpsPreset();
@@ -51,6 +53,8 @@ private:
   void refreshReplayBufferSettings();
   int resolutionPresetIndex(QObject *sender) const;
   int fpsPresetIndex(QObject *sender) const;
+  void applyRecordingPath(bool allowWhileOutputsActive);
+  void scheduleRecordingPathApply(const PluginConfig &config, bool pathReady);
   void saveCurrentConfig();
   void setPreviewText(const QString &path, bool error = false);
   void setStatusText(const QString &message, bool error = false);
@@ -71,6 +75,7 @@ private:
   QPushButton *applyReplayButton_ = nullptr;
   QLabel *previewLabel_ = nullptr;
   QLabel *statusLabel_ = nullptr;
+  QTimer *recordingPathApplyTimer_ = nullptr;
   QScrollArea *scrollArea_ = nullptr;
   QWidget *profileControl_ = nullptr;
   QWidget *sceneCollectionControl_ = nullptr;

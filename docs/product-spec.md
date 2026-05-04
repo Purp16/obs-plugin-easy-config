@@ -36,6 +36,8 @@ shortcuts, and replay-buffer tuning.
   recording/replay-buffer start.
 - Treat `autoApplyBeforeRecording` as the user-facing "Enable recording/replay path
   management" switch.
+- When enabled, apply the resolved path after path inputs settle so the target
+  directory exists before the user starts recording.
 - When enabled, apply the resolved path automatically when recording is
   starting.
 - When enabled, also apply the resolved path automatically before the replay
