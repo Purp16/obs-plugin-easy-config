@@ -43,7 +43,8 @@ ctest --test-dir build --output-on-failure
 
 Building the actual OBS plugin also requires Qt 6 and OBS Studio source headers
 matching the installed OBS version. See `README.md` for the current macOS
-command.
+command. See `docs/release.md` for GitHub Actions release packaging and
+installer generation.
 
 If the scaffold changes these commands, update this section in the same change.
 

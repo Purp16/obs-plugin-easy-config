@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(EASY_CONFIG_BUILD_PLUGIN "Build the OBS plugin target" ON)
 option(EASY_CONFIG_BUILD_TESTS "Build unit tests" ON)
+set(EASY_CONFIG_INSTALL_LAYOUT "user" CACHE STRING "Plugin install layout: user or program")
+set_property(CACHE EASY_CONFIG_INSTALL_LAYOUT PROPERTY STRINGS user program)
 
 add_library(easy_config_core STATIC
   src/path-template.cpp
@@ -24,34 +26,41 @@ target_compile_features(easy_config_core PUBLIC cxx_std_17)
 if(EASY_CONFIG_BUILD_PLUGIN)
   find_package(Qt6 COMPONENTS Core Widgets QUIET)
   set(OBS_APP_FRAMEWORK_DIR "/Applications/OBS.app/Contents/Frameworks" CACHE PATH "OBS.app Frameworks directory on macOS")
+  set(OBS_INSTALL_RPATH_FRAMEWORK_DIR "/Applications/OBS.app/Contents/Frameworks" CACHE PATH "OBS.app Frameworks directory encoded in installed macOS plugin bundles")
   find_path(OBS_FRONTEND_INCLUDE_DIR obs-frontend-api.h
     HINTS
       ${OBS_SOURCE_DIR}/UI/obs-frontend-api
       ${OBS_SOURCE_DIR}/frontend/api
       ${OBS_SOURCE_DIR}/frontend
       ${OBS_SOURCE_DIR}/libobs
+      /usr/include
+      /usr/local/include
       $ENV{OBS_SOURCE_DIR}/UI/obs-frontend-api
       $ENV{OBS_SOURCE_DIR}/frontend/api
       $ENV{OBS_SOURCE_DIR}/frontend
       $ENV{OBS_SOURCE_DIR}/libobs
-    PATH_SUFFIXES UI/obs-frontend-api frontend/api frontend libobs
+    PATH_SUFFIXES obs UI/obs-frontend-api frontend/api frontend libobs
   )
   find_path(OBS_MODULE_INCLUDE_DIR obs-module.h
     HINTS
       ${OBS_SOURCE_DIR}/libobs
+      /usr/include
+      /usr/local/include
       $ENV{OBS_SOURCE_DIR}/libobs
-    PATH_SUFFIXES libobs
+    PATH_SUFFIXES obs libobs
   )
   find_library(OBS_LIBRARY obs libobs
     HINTS
       ${OBS_LIBRARY_DIR}
       $ENV{OBS_LIBRARY_DIR}
+    PATH_SUFFIXES lib lib64 x86_64-linux-gnu
   )
   find_library(OBS_FRONTEND_LIBRARY obs-frontend-api libobs-frontend-api libobs-frontend-api.1
     HINTS
       ${OBS_LIBRARY_DIR}
       $ENV{OBS_LIBRARY_DIR}
       ${OBS_APP_FRAMEWORK_DIR}
+    PATH_SUFFIXES lib lib64 x86_64-linux-gnu
   )
   if(NOT OBS_FRONTEND_LIBRARY AND EXISTS "${OBS_APP_FRAMEWORK_DIR}/obs-frontend-api.dylib")
     set(OBS_FRONTEND_LIBRARY "${OBS_APP_FRAMEWORK_DIR}/obs-frontend-api.dylib")
@@ -115,9 +124,16 @@ if(EASY_CONFIG_BUILD_PLUGIN)
         "-Wl,-undefined,dynamic_lookup"
       )
 
-      target_compile_options(obs-plugin-easy-config PRIVATE
-        "-include" "arm_acle.h"
-      )
+      if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+        target_compile_options(obs-plugin-easy-config PRIVATE
+          "-Xarch_arm64" "-include"
+          "-Xarch_arm64" "arm_acle.h"
+        )
+      elseif(NOT CMAKE_OSX_ARCHITECTURES AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+        target_compile_options(obs-plugin-easy-config PRIVATE
+          "-include" "arm_acle.h"
+        )
+      endif()
     else()
       target_link_libraries(obs-plugin-easy-config
         PRIVATE
@@ -146,7 +162,7 @@ if(EASY_CONFIG_BUILD_PLUGIN)
         BUNDLE_EXTENSION "plugin"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos-plugin-info.plist.in"
         BUILD_RPATH "${OBS_APP_FRAMEWORK_DIR}"
-        INSTALL_RPATH "@loader_path/../../../../Frameworks;${OBS_APP_FRAMEWORK_DIR}"
+        INSTALL_RPATH "@loader_path/../../../../Frameworks;${OBS_INSTALL_RPATH_FRAMEWORK_DIR}"
       )
     endif()
 
@@ -190,6 +206,30 @@ if(EASY_CONFIG_BUILD_PLUGIN)
         DEPENDS obs-plugin-easy-config
         COMMENT "Installing obs-plugin-easy-config.plugin to the OBS user plugin directory"
         VERBATIM
+      )
+    endif()
+
+    if(EASY_CONFIG_INSTALL_LAYOUT STREQUAL "program" AND WIN32)
+      set(EASY_CONFIG_PLUGIN_DESTINATION "obs-plugins/64bit")
+      set(EASY_CONFIG_LOCALE_DESTINATION "data/obs-plugins/obs-plugin-easy-config/locale")
+    else()
+      set(EASY_CONFIG_PLUGIN_DESTINATION "obs-plugin-easy-config/bin/64bit")
+      set(EASY_CONFIG_LOCALE_DESTINATION "obs-plugin-easy-config/data/locale")
+    endif()
+
+    if(APPLE)
+      install(TARGETS obs-plugin-easy-config
+        BUNDLE DESTINATION "."
+      )
+    else()
+      install(TARGETS obs-plugin-easy-config
+        RUNTIME DESTINATION "${EASY_CONFIG_PLUGIN_DESTINATION}"
+        LIBRARY DESTINATION "${EASY_CONFIG_PLUGIN_DESTINATION}"
+      )
+
+      install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/locale/"
+        DESTINATION "${EASY_CONFIG_LOCALE_DESTINATION}"
+        FILES_MATCHING PATTERN "*.ini"
       )
     endif()
   else()

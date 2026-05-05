@@ -37,7 +37,7 @@ on newer OBS versions.
 
 Recommended release baseline:
 
-- Minimum OBS target: OBS Studio 30+
+- Minimum OBS target: OBS Studio 30.2+
 - OBS headers/SDK: match the minimum supported OBS release
 - Qt: match the Qt version bundled with that OBS release
 - Local smoke test: also test on the newest OBS release you support
@@ -62,6 +62,9 @@ Useful CMake variables:
 - `CMAKE_PREFIX_PATH`: Qt install prefix
 - `OBS_SOURCE_DIR`: OBS source checkout for headers
 - `OBS_LIBRARY_DIR`: directory containing OBS runtime/import libraries
+- `OBS_APP_FRAMEWORK_DIR`: macOS framework directory used while building
+- `OBS_INSTALL_RPATH_FRAMEWORK_DIR`: macOS framework directory encoded in
+  installed plugin bundles; defaults to `/Applications/OBS.app/Contents/Frameworks`
 - `EASY_CONFIG_BUILD_PLUGIN=OFF`: build only the pure unit tests
 
 ### macOS
@@ -173,6 +176,21 @@ cmake --build build-obs32-macos
 Long term, prefer adding `CMakePresets.json` and a pinned dependency file
 similar to `obs-plugintemplate` so CI can build macOS, Windows, and Linux
 packages with known OBS/Qt versions.
+
+## Release Builds
+
+Release builds are automated with GitHub Actions. Push a version tag such as
+`v0.1.0` to build Windows, macOS, and Linux artifacts and create a draft GitHub
+release.
+
+Current release artifacts include:
+
+- Windows x64 NSIS installer and zip
+- macOS universal pkg installer and tarball
+- Linux x86_64 tarball
+
+See `docs/release.md` for the full release workflow, local packaging commands,
+and smoke-test checklist.
 
 ### Compatibility Smoke Test
 

@@ -1,0 +1,269 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - "v*"
+      - "[0-9]+.[0-9]+.[0-9]+*"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release/package version override"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  OBS_VERSION: "32.1.2"
+  OBS_DEPS_VERSION: "2025-07-11"
+  BUILD_TYPE: RelWithDebInfo
+
+jobs:
+  core-tests:
+    name: Core tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DEASY_CONFIG_BUILD_PLUGIN=OFF
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  build-windows:
+    name: Windows x64
+    runs-on: windows-2022
+    needs: core-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.version }}" -ne "") {
+            $Version = "${{ inputs.version }}"
+          } elseif ("${{ github.ref_type }}" -eq "tag") {
+            $Version = "${{ github.ref_name }}" -replace '^v',''
+          } else {
+            $Version = "0.0.0-${{ github.run_number }}"
+          }
+          "value=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Install tools
+        shell: pwsh
+        run: choco install ninja nsis -y --no-progress
+
+      - name: Download OBS and Qt dependencies
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force deps | Out-Null
+          git clone --depth 1 --branch "$env:OBS_VERSION" https://github.com/obsproject/obs-studio.git deps/obs-studio
+          bash scripts/download-github-release-asset.sh obsproject/obs-deps "$env:OBS_DEPS_VERSION" "windows-deps-$env:OBS_DEPS_VERSION-x64.zip" deps/windows-deps.zip
+          bash scripts/download-github-release-asset.sh obsproject/obs-deps "$env:OBS_DEPS_VERSION" "windows-deps-qt6-$env:OBS_DEPS_VERSION-x64.zip" deps/windows-qt.zip
+          Expand-Archive deps/windows-deps.zip -DestinationPath deps/windows-deps
+          Expand-Archive deps/windows-qt.zip -DestinationPath deps/windows-qt
+
+      - name: Locate dependency roots
+        id: deps
+        shell: pwsh
+        run: |
+          $ObsSource = Resolve-Path "deps/obs-studio"
+          $ObsLib = Get-ChildItem deps/windows-deps -Recurse -Filter obs.lib | Select-Object -First 1
+          $QtConfig = Get-ChildItem deps/windows-qt -Recurse -Filter Qt6Config.cmake | Select-Object -First 1
+          if (!$ObsLib) { throw "obs.lib was not found in windows-deps" }
+          if (!$QtConfig) { throw "Qt6Config.cmake was not found in windows-qt" }
+          $ObsLibDir = $ObsLib.Directory.FullName
+          $QtPrefix = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $QtConfig.Directory.FullName))
+          "obs_source=$ObsSource" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "obs_lib=$ObsLibDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "qt_prefix=$QtPrefix" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build-plugin -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_PREFIX_PATH="${{ steps.deps.outputs.qt_prefix }}" `
+            -DOBS_SOURCE_DIR="${{ steps.deps.outputs.obs_source }}" `
+            -DOBS_LIBRARY_DIR="${{ steps.deps.outputs.obs_lib }}" `
+            -DEASY_CONFIG_INSTALL_LAYOUT=program
+
+      - name: Build
+        run: cmake --build build-plugin --config $env:BUILD_TYPE
+
+      - name: Test
+        run: ctest --test-dir build-plugin -C $env:BUILD_TYPE --output-on-failure
+
+      - name: Package
+        shell: pwsh
+        run: scripts/package-windows.ps1 -BuildDir build-plugin -Version "${{ steps.version.outputs.value }}" -Configuration $env:BUILD_TYPE
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: dist/*
+
+  build-macos:
+    name: macOS universal
+    runs-on: macos-15
+    needs: core-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
+            version="${{ inputs.version }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="0.0.0-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install tools
+        run: brew install ninja
+
+      - name: Download OBS and Qt dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p deps
+          git clone --depth 1 --branch "$OBS_VERSION" https://github.com/obsproject/obs-studio.git deps/obs-studio
+          scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-deps.tar.xz
+          scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-qt6-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-qt.tar.xz
+          mkdir -p deps/macos-deps deps/macos-qt
+          tar -xJf deps/macos-deps.tar.xz -C deps/macos-deps --strip-components=1
+          tar -xJf deps/macos-qt.tar.xz -C deps/macos-qt --strip-components=1
+
+      - name: Locate dependency roots
+        id: deps
+        run: |
+          obs_lib="$(find "$PWD/deps/macos-deps" -name 'libobs.framework' -type d -print -quit)"
+          qt_config="$(find "$PWD/deps/macos-qt" -name 'Qt6Config.cmake' -print -quit)"
+          if [[ -z "$obs_lib" ]]; then
+            echo "libobs.framework was not found in macos-deps" >&2
+            exit 1
+          fi
+          if [[ -z "$qt_config" ]]; then
+            echo "Qt6Config.cmake was not found in macos-qt" >&2
+            exit 1
+          fi
+          obs_frameworks="$(dirname "$obs_lib")"
+          qt_prefix="$(cd "$(dirname "$qt_config")/../../.." && pwd)"
+          {
+            echo "obs_source=$PWD/deps/obs-studio"
+            echo "obs_frameworks=$obs_frameworks"
+            echo "qt_prefix=$qt_prefix"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-plugin -G Ninja \
+            -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_PREFIX_PATH="${{ steps.deps.outputs.qt_prefix }}" \
+            -DOBS_SOURCE_DIR="${{ steps.deps.outputs.obs_source }}" \
+            -DOBS_LIBRARY_DIR="${{ steps.deps.outputs.obs_frameworks }}" \
+            -DOBS_APP_FRAMEWORK_DIR="${{ steps.deps.outputs.obs_frameworks }}" \
+            -DOBS_INSTALL_RPATH_FRAMEWORK_DIR="/Applications/OBS.app/Contents/Frameworks"
+
+      - name: Build
+        run: cmake --build build-plugin
+
+      - name: Test
+        run: ctest --test-dir build-plugin --output-on-failure
+
+      - name: Package
+        run: scripts/package-macos.sh build-plugin "${{ steps.version.outputs.value }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: dist/*
+
+  build-linux:
+    name: Linux x86_64
+    runs-on: ubuntu-24.04
+    needs: core-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
+            version="${{ inputs.version }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="0.0.0-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ qt6-base-dev
+          sudo apt-get install -y -t noble-backports libobs-dev obs-studio
+
+      - name: Configure
+        run: cmake -S . -B build-plugin -G Ninja -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+
+      - name: Build
+        run: cmake --build build-plugin
+
+      - name: Test
+        run: ctest --test-dir build-plugin --output-on-failure
+
+      - name: Package
+        run: scripts/package-linux.sh build-plugin "${{ steps.version.outputs.value }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: dist/*
+
+  release:
+    name: Draft GitHub release
+    runs-on: ubuntu-24.04
+    needs:
+      - build-windows
+      - build-macos
+      - build-linux
+    if: github.ref_type == 'tag'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: artifacts/*
