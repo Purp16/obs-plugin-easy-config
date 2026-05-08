@@ -86,12 +86,20 @@ jobs:
         run: |
           $ObsBin = Get-ChildItem deps/windows-obs -Recurse -Filter obs.dll | Select-Object -First 1
           $FrontendBin = Get-ChildItem deps/windows-obs -Recurse -Filter obs-frontend-api.dll | Select-Object -First 1
-          $Dumpbin = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio" -Recurse -Filter dumpbin.exe | Select-Object -First 1
-          $LibExe = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio" -Recurse -Filter lib.exe | Select-Object -First 1
+          $VsWhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (!(Test-Path $VsWhere)) { throw "vswhere.exe was not found" }
+          $VsInstallPath = & $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (!$VsInstallPath) { throw "Visual Studio C++ tools were not found" }
+          $VcToolsBin = Get-ChildItem (Join-Path $VsInstallPath "VC\Tools\MSVC") -Directory |
+            Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName "bin\Hostx64\x64" } |
+            Where-Object { Test-Path (Join-Path $_ "dumpbin.exe") -and Test-Path (Join-Path $_ "lib.exe") } |
+            Select-Object -First 1
+          if (!$VcToolsBin) { throw "Visual Studio Hostx64 x64 tool directory was not found" }
+          $Dumpbin = Get-Item (Join-Path $VcToolsBin "dumpbin.exe")
+          $LibExe = Get-Item (Join-Path $VcToolsBin "lib.exe")
           if (!$ObsBin) { throw "obs.dll was not found in windows OBS package" }
           if (!$FrontendBin) { throw "obs-frontend-api.dll was not found in windows OBS package" }
-          if (!$Dumpbin) { throw "dumpbin.exe was not found in Visual Studio tools" }
-          if (!$LibExe) { throw "lib.exe was not found in Visual Studio tools" }
 
           $LibOutDir = Join-Path (Resolve-Path "deps").Path "windows-obs-libs"
           New-Item -ItemType Directory -Force $LibOutDir | Out-Null
@@ -103,6 +111,7 @@ jobs:
             )
 
             $DefPath = Join-Path $LibOutDir ($LibName + ".def")
+            $LibPath = Join-Path $LibOutDir ($LibName + ".lib")
             $Exports = & $Dumpbin.FullName /nologo /exports $DllPath
             if ($LASTEXITCODE -ne 0) {
               throw "dumpbin failed for $DllPath"
@@ -126,7 +135,7 @@ jobs:
               "EXPORTS"
             ) + $Symbols | Set-Content -Path $DefPath -Encoding ascii
 
-            & $LibExe.FullName /nologo /def:$DefPath /machine:x64 /out:(Join-Path $LibOutDir ($LibName + ".lib"))
+            & $LibExe.FullName /nologo /def:$DefPath /machine:x64 /out:$LibPath
             if ($LASTEXITCODE -ne 0) {
               throw "lib.exe failed while creating import library for $DllPath"
             }
@@ -221,7 +230,7 @@ jobs:
             echo "Qt6Config.cmake was not found in macos-qt" >&2
             exit 1
           fi
-          qt_prefix="$(cd "$(dirname "$qt_config")/../../.." && pwd)"
+          qt_prefix="$PWD/deps/macos-qt"
           {
             echo "obs_source=$PWD/deps/obs-studio"
             echo "qt_prefix=$qt_prefix"
