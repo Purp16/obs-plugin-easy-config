@@ -86,9 +86,17 @@ jobs:
         shell: pwsh
         run: |
           $ObsSource = Resolve-Path "deps/obs-studio"
-          $ObsLib = Get-ChildItem deps/windows-deps -Recurse -Filter obs.lib | Select-Object -First 1
+          $ObsLib = @(
+            Get-ChildItem deps/windows-deps -Recurse -File -Include obs.lib,libobs.lib -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          ) | Select-Object -First 1
           $QtConfig = Get-ChildItem deps/windows-qt -Recurse -Filter Qt6Config.cmake | Select-Object -First 1
-          if (!$ObsLib) { throw "obs.lib was not found in windows-deps" }
+          if (!$ObsLib) {
+            Write-Host "Contents of deps/windows-deps (first 200 entries):"
+            Get-ChildItem deps/windows-deps -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 200 FullName
+            throw "Neither obs.lib nor libobs.lib was found in windows-deps"
+          }
           if (!$QtConfig) { throw "Qt6Config.cmake was not found in windows-qt" }
           $ObsLibDir = $ObsLib.Directory.FullName
           $QtPrefix = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $QtConfig.Directory.FullName))
@@ -150,8 +158,8 @@ jobs:
         run: |
           mkdir -p deps
           git clone --depth 1 --branch "$OBS_VERSION" https://github.com/obsproject/obs-studio.git deps/obs-studio
-          scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-deps.tar.xz
-          scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-qt6-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-qt.tar.xz
+          bash scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-deps.tar.xz
+          bash scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-qt6-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-qt.tar.xz
           mkdir -p deps/macos-deps deps/macos-qt
           tar -xJf deps/macos-deps.tar.xz -C deps/macos-deps --strip-components=1
           tar -xJf deps/macos-qt.tar.xz -C deps/macos-qt --strip-components=1

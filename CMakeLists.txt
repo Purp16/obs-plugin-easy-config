@@ -16,6 +16,10 @@ add_library(easy_config_core STATIC
   src/plugin-config.cpp
 )
 
+set_target_properties(easy_config_core PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
+
 target_include_directories(easy_config_core
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
