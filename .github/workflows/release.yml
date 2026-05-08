@@ -76,26 +76,77 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force deps | Out-Null
           git clone --depth 1 --branch "$env:OBS_VERSION" https://github.com/obsproject/obs-studio.git deps/obs-studio
-          bash scripts/download-github-release-asset.sh obsproject/obs-deps "$env:OBS_DEPS_VERSION" "windows-deps-$env:OBS_DEPS_VERSION-x64.zip" deps/windows-deps.zip
+          bash scripts/download-github-release-asset.sh obsproject/obs-studio "$env:OBS_VERSION" "OBS-Studio-$env:OBS_VERSION-Windows-x64.zip" deps/obs-windows.zip
           bash scripts/download-github-release-asset.sh obsproject/obs-deps "$env:OBS_DEPS_VERSION" "windows-deps-qt6-$env:OBS_DEPS_VERSION-x64.zip" deps/windows-qt.zip
-          Expand-Archive deps/windows-deps.zip -DestinationPath deps/windows-deps
+          Expand-Archive deps/obs-windows.zip -DestinationPath deps/windows-obs
           Expand-Archive deps/windows-qt.zip -DestinationPath deps/windows-qt
+
+      - name: Create OBS import libraries
+        shell: pwsh
+        run: |
+          $ObsBin = Get-ChildItem deps/windows-obs -Recurse -Filter obs.dll | Select-Object -First 1
+          $FrontendBin = Get-ChildItem deps/windows-obs -Recurse -Filter obs-frontend-api.dll | Select-Object -First 1
+          $Dumpbin = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio" -Recurse -Filter dumpbin.exe | Select-Object -First 1
+          $LibExe = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio" -Recurse -Filter lib.exe | Select-Object -First 1
+          if (!$ObsBin) { throw "obs.dll was not found in windows OBS package" }
+          if (!$FrontendBin) { throw "obs-frontend-api.dll was not found in windows OBS package" }
+          if (!$Dumpbin) { throw "dumpbin.exe was not found in Visual Studio tools" }
+          if (!$LibExe) { throw "lib.exe was not found in Visual Studio tools" }
+
+          $LibOutDir = Join-Path (Resolve-Path "deps").Path "windows-obs-libs"
+          New-Item -ItemType Directory -Force $LibOutDir | Out-Null
+
+          function New-ImportLib {
+            param(
+              [string]$DllPath,
+              [string]$LibName
+            )
+
+            $DefPath = Join-Path $LibOutDir ($LibName + ".def")
+            $Exports = & $Dumpbin.FullName /nologo /exports $DllPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "dumpbin failed for $DllPath"
+            }
+
+            $Symbols = foreach ($Line in $Exports) {
+              if ($Line -match '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(.+)$') {
+                $Symbol = $Matches[1].Trim()
+                if ($Symbol -and $Symbol -notmatch '^\[') {
+                  $Symbol
+                }
+              }
+            }
+
+            if (!$Symbols) {
+              throw "No exports found in $DllPath"
+            }
+
+            @(
+              "LIBRARY $LibName"
+              "EXPORTS"
+            ) + $Symbols | Set-Content -Path $DefPath -Encoding ascii
+
+            & $LibExe.FullName /nologo /def:$DefPath /machine:x64 /out:(Join-Path $LibOutDir ($LibName + ".lib"))
+            if ($LASTEXITCODE -ne 0) {
+              throw "lib.exe failed while creating import library for $DllPath"
+            }
+          }
+
+          New-ImportLib -DllPath $ObsBin.FullName -LibName "obs"
+          New-ImportLib -DllPath $FrontendBin.FullName -LibName "obs-frontend-api"
 
       - name: Locate dependency roots
         id: deps
         shell: pwsh
         run: |
           $ObsSource = Resolve-Path "deps/obs-studio"
-          $ObsLib = @(
-            Get-ChildItem deps/windows-deps -Recurse -File -Include obs.lib,libobs.lib -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-          ) | Select-Object -First 1
+          $ObsLib = Get-ChildItem deps/windows-obs-libs -Recurse -Filter obs.lib | Select-Object -First 1
           $QtConfig = Get-ChildItem deps/windows-qt -Recurse -Filter Qt6Config.cmake | Select-Object -First 1
           if (!$ObsLib) {
-            Write-Host "Contents of deps/windows-deps (first 200 entries):"
-            Get-ChildItem deps/windows-deps -Recurse -ErrorAction SilentlyContinue |
+            Write-Host "Contents of deps/windows-obs-libs (first 200 entries):"
+            Get-ChildItem deps/windows-obs-libs -Recurse -ErrorAction SilentlyContinue |
               Select-Object -First 200 FullName
-            throw "Neither obs.lib nor libobs.lib was found in windows-deps"
+            throw "obs.lib was not found in generated windows-obs-libs"
           }
           if (!$QtConfig) { throw "Qt6Config.cmake was not found in windows-qt" }
           $ObsLibDir = $ObsLib.Directory.FullName
@@ -158,30 +209,21 @@ jobs:
         run: |
           mkdir -p deps
           git clone --depth 1 --branch "$OBS_VERSION" https://github.com/obsproject/obs-studio.git deps/obs-studio
-          bash scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-deps.tar.xz
           bash scripts/download-github-release-asset.sh obsproject/obs-deps "$OBS_DEPS_VERSION" "macos-deps-qt6-$OBS_DEPS_VERSION-universal.tar.xz" deps/macos-qt.tar.xz
-          mkdir -p deps/macos-deps deps/macos-qt
-          tar -xJf deps/macos-deps.tar.xz -C deps/macos-deps --strip-components=1
+          mkdir -p deps/macos-qt
           tar -xJf deps/macos-qt.tar.xz -C deps/macos-qt --strip-components=1
 
       - name: Locate dependency roots
         id: deps
         run: |
-          obs_lib="$(find "$PWD/deps/macos-deps" -name 'libobs.framework' -type d -print -quit)"
           qt_config="$(find "$PWD/deps/macos-qt" -name 'Qt6Config.cmake' -print -quit)"
-          if [[ -z "$obs_lib" ]]; then
-            echo "libobs.framework was not found in macos-deps" >&2
-            exit 1
-          fi
           if [[ -z "$qt_config" ]]; then
             echo "Qt6Config.cmake was not found in macos-qt" >&2
             exit 1
           fi
-          obs_frameworks="$(dirname "$obs_lib")"
           qt_prefix="$(cd "$(dirname "$qt_config")/../../.." && pwd)"
           {
             echo "obs_source=$PWD/deps/obs-studio"
-            echo "obs_frameworks=$obs_frameworks"
             echo "qt_prefix=$qt_prefix"
           } >> "$GITHUB_OUTPUT"
 
@@ -192,8 +234,7 @@ jobs:
             -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
             -DCMAKE_PREFIX_PATH="${{ steps.deps.outputs.qt_prefix }}" \
             -DOBS_SOURCE_DIR="${{ steps.deps.outputs.obs_source }}" \
-            -DOBS_LIBRARY_DIR="${{ steps.deps.outputs.obs_frameworks }}" \
-            -DOBS_APP_FRAMEWORK_DIR="${{ steps.deps.outputs.obs_frameworks }}" \
+            -DOBS_APP_FRAMEWORK_DIR="/Applications/OBS.app/Contents/Frameworks" \
             -DOBS_INSTALL_RPATH_FRAMEWORK_DIR="/Applications/OBS.app/Contents/Frameworks"
 
       - name: Build
@@ -203,7 +244,7 @@ jobs:
         run: ctest --test-dir build-plugin --output-on-failure
 
       - name: Package
-        run: scripts/package-macos.sh build-plugin "${{ steps.version.outputs.value }}"
+        run: bash scripts/package-macos.sh build-plugin "${{ steps.version.outputs.value }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -247,7 +288,7 @@ jobs:
         run: ctest --test-dir build-plugin --output-on-failure
 
       - name: Package
-        run: scripts/package-linux.sh build-plugin "${{ steps.version.outputs.value }}"
+        run: bash scripts/package-linux.sh build-plugin "${{ steps.version.outputs.value }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
