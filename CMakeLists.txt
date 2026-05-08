@@ -237,7 +237,14 @@ if(EASY_CONFIG_BUILD_PLUGIN)
       )
     endif()
   else()
-    message(WARNING "Skipping OBS plugin target. Install Qt6 and provide OBS_SOURCE_DIR/OBS_LIBRARY_DIR with OBS headers and libraries.")
+    message(WARNING
+      "Skipping OBS plugin target. "
+      "Qt6_FOUND=${Qt6_FOUND}, "
+      "OBS_FRONTEND_INCLUDE_DIR=${OBS_FRONTEND_INCLUDE_DIR}, "
+      "OBS_MODULE_INCLUDE_DIR=${OBS_MODULE_INCLUDE_DIR}, "
+      "OBS_LIBRARY=${OBS_LIBRARY}, "
+      "OBS_FRONTEND_LIBRARY=${OBS_FRONTEND_LIBRARY}."
+    )
   endif()
 endif()
 

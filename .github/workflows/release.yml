@@ -93,7 +93,7 @@ jobs:
           $VcToolsBin = Get-ChildItem (Join-Path $VsInstallPath "VC\Tools\MSVC") -Directory |
             Sort-Object Name -Descending |
             ForEach-Object { Join-Path $_.FullName "bin\Hostx64\x64" } |
-            Where-Object { Test-Path (Join-Path $_ "dumpbin.exe") -and Test-Path (Join-Path $_ "lib.exe") } |
+            Where-Object { (Test-Path (Join-Path $_ "dumpbin.exe")) -and (Test-Path (Join-Path $_ "lib.exe")) } |
             Select-Object -First 1
           if (!$VcToolsBin) { throw "Visual Studio Hostx64 x64 tool directory was not found" }
           $Dumpbin = Get-Item (Join-Path $VcToolsBin "dumpbin.exe")
@@ -226,14 +226,30 @@ jobs:
         id: deps
         run: |
           qt_config="$(find "$PWD/deps/macos-qt" -name 'Qt6Config.cmake' -print -quit)"
+          frontend_header="$(find "$PWD/deps/obs-studio" -name 'obs-frontend-api.h' -print -quit)"
+          module_header="$(find "$PWD/deps/obs-studio" -name 'obs-module.h' -print -quit)"
           if [[ -z "$qt_config" ]]; then
             echo "Qt6Config.cmake was not found in macos-qt" >&2
             exit 1
           fi
+          if [[ -z "$frontend_header" ]]; then
+            echo "obs-frontend-api.h was not found in obs-studio checkout" >&2
+            exit 1
+          fi
+          if [[ -z "$module_header" ]]; then
+            echo "obs-module.h was not found in obs-studio checkout" >&2
+            exit 1
+          fi
           qt_prefix="$PWD/deps/macos-qt"
+          qt_dir="$(dirname "$qt_config")"
+          frontend_include="$(dirname "$frontend_header")"
+          module_include="$(dirname "$module_header")"
           {
             echo "obs_source=$PWD/deps/obs-studio"
             echo "qt_prefix=$qt_prefix"
+            echo "qt_dir=$qt_dir"
+            echo "frontend_include=$frontend_include"
+            echo "module_include=$module_include"
           } >> "$GITHUB_OUTPUT"
 
       - name: Configure
@@ -242,7 +258,10 @@ jobs:
             -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
             -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
             -DCMAKE_PREFIX_PATH="${{ steps.deps.outputs.qt_prefix }}" \
+            -DQt6_DIR="${{ steps.deps.outputs.qt_dir }}" \
             -DOBS_SOURCE_DIR="${{ steps.deps.outputs.obs_source }}" \
+            -DOBS_FRONTEND_INCLUDE_DIR="${{ steps.deps.outputs.frontend_include }}" \
+            -DOBS_MODULE_INCLUDE_DIR="${{ steps.deps.outputs.module_include }}" \
             -DOBS_APP_FRAMEWORK_DIR="/Applications/OBS.app/Contents/Frameworks" \
             -DOBS_INSTALL_RPATH_FRAMEWORK_DIR="/Applications/OBS.app/Contents/Frameworks"
 
